@@ -20,6 +20,14 @@ choco install ffmpeg -y
 Write-Host "Installing yt-dlp..." -ForegroundColor Yellow
 choco install yt-dlp -y
 
+# Install Node.js (LTS)
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing Node.js (LTS)..." -ForegroundColor Yellow
+    choco install nodejs-lts -y
+} else {
+    Write-Host "Node.js is already installed." -ForegroundColor Green
+}
+
 # Detect Paths
 $ffmpegPath = (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue).Source
 $ffprobePath = (Get-Command ffprobe.exe -ErrorAction SilentlyContinue).Source
@@ -79,4 +87,12 @@ yt-dlp --version
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 
 Write-Host "Setup complete! Your .env file has been updated." -ForegroundColor Green
-Write-Host "You can now run 'npm install' and 'npm start'." -ForegroundColor White
+
+# Refresh Environment Variables for the current session (to find npm if just installed)
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Run npm install
+Write-Host "Running npm install..." -ForegroundColor Cyan
+npm install
+
+Write-Host "`nYou can now run 'npm start' to launch the application!" -ForegroundColor White
