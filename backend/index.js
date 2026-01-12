@@ -1,4 +1,4 @@
-import './config.js'; // Load environment variables first
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1036,7 +1036,7 @@ router.get('/get-credentials', async (req, res) => {
         }
     } catch (error) {
         console.error('Error reading credentials:', error);
-        res.status(500).json({ success: false, message: 'Failed to read credentials file.' });
+        res.status(500).json({ success: false, message: 'Failed to read credentials file.', error: error.message });
     }
 });
 
@@ -1049,7 +1049,7 @@ router.post('/save-credentials', async (req, res) => {
         res.json({ success: true, message: 'Credentials saved successfully.' });
     } catch (error) {
         console.error('Error saving credentials:', error);
-        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save credentials file.' });
+        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save credentials file.', error: error.message });
     }
 });
 
