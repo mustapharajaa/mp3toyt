@@ -1,0 +1,180 @@
+/* Channel Grid Styles */
+.channel-grid {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin: 15px 0;
+    justify-content: center;
+    /* Center items */
+}
+
+.channel-item {
+    cursor: pointer;
+    transition: transform 0.2s;
+    text-align: center;
+}
+
+.channel-item:hover {
+    transform: scale(1.05);
+}
+
+.channel-avatar {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid transparent;
+    /* Default border */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    display: block;
+    /* Eliminate flex gaps */
+}
+
+/* Selected State - Border on Avatar */
+.channel-item.selected .channel-avatar {
+    border-color: #16a34a;
+    box-shadow: 0 0 10px rgba(22, 163, 74, 0.5);
+}
+
+/* Icons Wrapper */
+.avatar-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+/* Check Icon (Selected) */
+.check-icon {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #16a34a;
+    /* Green */
+    color: white;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: none;
+    /* Hidden by default */
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    /* Tiny icon */
+    border: 1px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 5;
+}
+
+.channel-item.selected .check-icon {
+    display: flex;
+}
+
+/* Delete Mode Styles */
+.delete-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #ef4444;
+    color: white;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: none;
+    /* Hidden by default, shown in manage-mode */
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    border: 1px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    /* Above check icon */
+    cursor: pointer;
+}
+
+.delete-btn:hover {
+    background-color: #dc2626;
+}
+
+/* Show delete buttons only in manage mode */
+.manage-mode .delete-btn {
+    display: flex;
+}
+
+/* Manage Button */
+.manage-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+    margin-left: 10px;
+}
+
+.manage-btn:hover {
+    color: #ef4444;
+}
+
+/* Toast Notification */
+.toast-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #333;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s, transform 0.3s;
+    font-size: 0.8rem;
+}
+
+.toast-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-notification.success {
+    border-left: 4px solid #16a34a;
+}
+
+.toast-notification.error {
+    background-color: #ef4444;
+    color: white;
+}
+
+.toast-actions {
+    display: flex;
+    gap: 10px;
+    margin-left: 15px;
+}
+
+.toast-btn {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.2s;
+}
+
+.toast-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.toast-btn.confirm {
+    background: #ef4444;
+    border-color: #ef4444;
+}
+
+.toast-btn.confirm:hover {
+    background: #dc2626;
+}

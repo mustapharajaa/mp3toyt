@@ -1,0 +1,9 @@
+node_modules/
+.env
+credentials.json
+tokens.json
+uploads/
+temp/
+channels.json
+package-lock.json
+*.log
