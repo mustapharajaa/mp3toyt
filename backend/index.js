@@ -811,20 +811,111 @@ router.get('/auth/mp3toyt', (req, res) => {
     } catch (error) {
         console.error('[Auth Error]', error);
         res.status(500).send(`
-            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ff4444; background: #fff5f5; border-radius: 8px; max-width: 600px; margin: 50px auto;">
-                <h2 style="color: #cc0000;">YouTube Authentication Error</h2>
-                <p><strong>Message:</strong> ${error.message}</p>
-                <hr>
-                <p>To fix this:</p>
-                <ol>
-                    <li>Go to the <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>.</li>
-                    <li>Download your <strong>OAuth 2.0 Client ID</strong> JSON file.</li>
-                    <li>Rename it to <code>credentials.json</code>.</li>
-                    <li>Upload/Place it in your project root directory.</li>
-                    <li>Restart the server and try again.</li>
-                </ol>
-                <button onclick="window.history.back()" style="padding: 10px 20px; cursor: pointer;">Go Back</button>
-            </div>
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>YouTube Authentication Error</title>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+                <style>
+                    body { font-family: 'Inter', -apple-system, sans-serif; background-color: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                    .card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 550px; width: 100%; text-align: center; border: 1px solid #e0e0e0; position: relative; }
+                    .icon { font-size: 64px; color: #ef4444; margin-bottom: 20px; }
+                    h2 { color: #1f2937; margin: 0 0 10px; font-size: 24px; }
+                    .message { color: #6b7280; background: #fff5f5; border: 1px solid #fee2e2; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; margin: 20px 0; word-break: break-word; }
+                    .steps { text-align: left; background: #f9fafb; padding: 20px; border-radius: 12px; margin-bottom: 25px; }
+                    .steps h3 { margin-top: 0; font-size: 16px; color: #374151; }
+                    .steps ol { padding-left: 20px; color: #4b5563; font-size: 14px; line-height: 1.6; }
+                    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+                    .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none; transition: all 0.2s; border: none; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
+                    .btn-primary { background: #1877f2; color: white; }
+                    .btn-primary:hover { background: #166fe5; transform: translateY(-1px); }
+                    .btn-secondary { background: #e4e6eb; color: #050505; }
+                    .btn-secondary:hover { background: #d8dadf; }
+                    
+                    /* Modal Styles */
+                    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
+                    .modal-content { background: white; padding: 30px; border-radius: 16px; width: 90%; max-width: 600px; position: relative; }
+                    .close-modal { position: absolute; top: 15px; right: 20px; font-size: 28px; cursor: pointer; color: #666; }
+                    textarea { width: 100%; min-height: 300px; margin-top: 15px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 13px; box-sizing: border-box; }
+                    .notification { position: fixed; bottom: 20px; right: 20px; padding: 15px 25px; border-radius: 8px; color: white; display: none; z-index: 2000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <h2>YouTube Authentication Error</h2>
+                    <div class="message">${error.message}</div>
+                    <div class="steps">
+                        <h3>How to fix this:</h3>
+                        <ol>
+                            <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: #1877f2;">Google Cloud Console</a></li>
+                            <li>Download your <strong>OAuth 2.0 Client ID</strong> JSON</li>
+                            <li>Click **"Fix in Editor"** below to paste the JSON content</li>
+                        </ol>
+                    </div>
+                    <div class="actions">
+                        <button onclick="openEditor()" class="btn btn-primary"><i class="fas fa-edit"></i> Fix in Editor</button>
+                        <a href="/auth/mp3toyt" class="btn btn-secondary"><i class="fas fa-sync"></i> Try Again</a>
+                        <a href="/" class="btn btn-secondary">Go Back</a>
+                    </div>
+                </div>
+
+                <!-- Editor Modal -->
+                <div id="editorModal" class="modal">
+                    <div class="modal-content">
+                        <span class="close-modal" onclick="closeEditor()">&times;</span>
+                        <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-key"></i> Credentials Editor</h2>
+                        <p style="font-size: 14px; color: #666;">Paste your <code>credentials.json</code> content here:</p>
+                        <textarea id="credentials-json" placeholder='{ "web": { ... } }'></textarea>
+                        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                            <button onclick="closeEditor()" class="btn btn-secondary">Cancel</button>
+                            <button id="saveBtn" onclick="saveCredentials()" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="notification" class="notification"></div>
+
+                <script>
+                    function openEditor() {
+                        document.getElementById('editorModal').style.display = 'flex';
+                        fetch('/get-credentials').then(r => r.json()).then(data => {
+                            if(data.success) document.getElementById('credentials-json').value = data.credentials;
+                        });
+                    }
+                    function closeEditor() { document.getElementById('editorModal').style.display = 'none'; }
+                    function showNotification(msg, type='success') {
+                        const n = document.getElementById('notification');
+                        n.textContent = msg;
+                        n.style.backgroundColor = type === 'success' ? '#22c55e' : '#ef4444';
+                        n.style.display = 'block';
+                        setTimeout(() => n.style.display = 'none', 3000);
+                    }
+                    async function saveCredentials() {
+                        const btn = document.getElementById('saveBtn');
+                        const json = document.getElementById('credentials-json').value;
+                        btn.disabled = true;
+                        btn.textContent = 'Saving...';
+                        try {
+                            const res = await fetch('/save-credentials', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ credentials: json })
+                            });
+                            const data = await res.json();
+                            if (data.success) {
+                                showNotification('Saved successfully!');
+                                setTimeout(closeEditor, 500);
+                            } else {
+                                showNotification(data.message || 'Error saving', 'error');
+                            }
+                        } catch (e) { showNotification('Network error', 'error'); }
+                        finally { btn.disabled = false; btn.textContent = 'Save Changes'; }
+                    }
+                    window.onclick = (e) => { if (e.target.className === 'modal') closeEditor(); }
+                </script>
+            </body>
+            </html>
         `);
     }
 });
