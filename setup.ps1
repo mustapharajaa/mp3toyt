@@ -28,19 +28,26 @@ Write-Host "Detected FFmpeg at: $ffmpegPath" -ForegroundColor Green
 Write-Host "Detected yt-dlp at: $ytDlpPath" -ForegroundColor Green
 
 # Update .env file
-$envFile = ".env"
+$envFile = Join-Path $PSScriptRoot ".env"
 if (-not (Test-Path $envFile)) {
-    Write-Host "Creating new .env file..." -ForegroundColor Yellow
-    New-Item -ItemType File -Path $envFile -Force
+    Write-Host "Creating new .env file at $envFile..." -ForegroundColor Yellow
+    New-Item -ItemType File -Path $envFile -Force | Out-Null
 }
 
 function Update-EnvVar($name, $value) {
-    $content = Get-Content $envFile
-    $escapedValue = $value -replace '\\', '\\'
-    if ($content -match "^$name=") {
-        $content = $content -replace "^$name=.*", "$name=$escapedValue"
+    if (Test-Path $envFile) {
+        $content = Get-Content $envFile
     } else {
-        $content += "$name=$escapedValue"
+        $content = @()
+    }
+    
+    $escapedValue = $value -replace '\\', '\\'
+    $line = "$name=$escapedValue"
+    
+    if ($content -match "^$name=") {
+        $content = $content -replace "^$name=.*", $line
+    } else {
+        $content += $line
     }
     $content | Set-Content $envFile
 }
