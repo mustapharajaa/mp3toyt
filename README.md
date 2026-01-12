@@ -29,3 +29,22 @@ npm start
 ### 3. Final Configuration
 1. Add your `credentials.json` from Google Cloud Console.
 2. The setup script will have created a `.env` file; you may add additional variables if needed.
+
+### 4. Open Port for Online Access (Optional)
+To access the application via your IP address, you must open port **8000**.
+
+#### Windows RDP (Standard CMD or PowerShell as Admin):
+```cmd
+netsh advfirewall firewall add rule name="Allow mp3toyt (Port 8000)" dir=in action=allow protocol=TCP localport=8000
+```
+*Alternatively, in PowerShell:*
+```powershell
+New-NetFirewallRule -DisplayName "Allow mp3toyt (Port 8000)" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+```
+
+#### Linux Server (Terminal):
+```bash
+sudo ufw allow 8000/tcp
+```
+> [!NOTE]
+> If you are using a cloud provider (AWS, Azure, etc.), you must also allow port 8000 in their web console's security rules.
