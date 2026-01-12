@@ -234,18 +234,39 @@ document.addEventListener('DOMContentLoaded', () => {
         progressStatus.textContent = '';
         if (progressBar) { progressBar.style.backgroundColor = ''; progressBar.style.width = '0%'; }
 
+        if (files.length === 0) return;
+
         const formData = new FormData(); formData.append('sessionId', sessionId);
         let hasAudio = false, hasImage = false;
         for (const file of files) {
             if (file.type.startsWith('audio/')) { formData.append('file', file); formData.append('fileType', 'audio'); hasAudio = true; }
             else if (file.type.startsWith('image/')) { formData.append('file', file); formData.append('fileType', 'image'); hasImage = true; }
         }
-        const res = await fetch('/upload-file', { method: 'POST', body: formData });
-        const result = await res.json();
-        if (result.success) {
-            if (hasAudio) { updateAudioStatus(state.audioCount + 1, result.totalDuration); }
-            if (hasImage) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Uploaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="/temp/${sessionId}/image.jpg?t=${Date.now()}" style="max-height: 200px;">`; }
-            updateCreateButton();
+
+        if (hasAudio) setStatus(audioStatus, 'loading', 'Uploading Audio...');
+        if (hasImage) setStatus(imageStatus, 'loading', 'Uploading Image...');
+
+        try {
+            const res = await fetch('/upload-file', { method: 'POST', body: formData });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server responded with ${res.status}`);
+            }
+
+            const result = await res.json();
+            if (result.success) {
+                if (hasAudio) { updateAudioStatus(state.audioCount + 1, result.totalDuration); }
+                if (hasImage) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Uploaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="/temp/${sessionId}/image.jpg?t=${Date.now()}" style="max-height: 200px;">`; }
+                updateCreateButton();
+            } else {
+                throw new Error(result.message || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            if (hasAudio) setStatus(audioStatus, 'error', `Upload failed: ${error.message}`);
+            if (hasImage) setStatus(imageStatus, 'error', `Upload failed: ${error.message}`);
+            showNotification(error.message, 'error');
         }
     }
 

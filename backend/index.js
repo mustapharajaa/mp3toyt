@@ -275,13 +275,16 @@ router.post('/download-image', async (req, res) => {
 });
 
 router.post('/upload-file', (req, res) => {
-    const form = formidable({});
+    const form = formidable({
+        maxFileSize: 1024 * 1024 * 1024, // 1GB
+        maxTotalFileSize: 1024 * 1024 * 1024, // 1GB
+    });
 
     form.parse(req, async (err, fields, files) => {
         try {
             if (err) {
                 console.error('Error parsing form:', err);
-                return res.status(500).json({ success: false, message: 'Error processing upload.' });
+                return res.status(500).json({ success: false, message: 'Error processing upload. File might be too large.' });
             }
 
             const sessionId = Array.isArray(fields.sessionId) ? fields.sessionId[0] : fields.sessionId;
@@ -307,10 +310,9 @@ router.post('/upload-file', (req, res) => {
             }
             const destPath = path.join(sessionDir, destFilename);
 
-            // Use a more robust read/write to prevent file corruption issues
+            // Use copyFile instead of readFile/writeFile for memory efficiency
             if (!file.filepath) throw new Error('File path missing in upload object');
-            const fileData = await fs.readFile(file.filepath);
-            await fs.writeFile(destPath, fileData);
+            await fs.copyFile(file.filepath, destPath);
 
             let totalDurationFormatted = null;
             if (fileType === 'audio') {
