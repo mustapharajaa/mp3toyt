@@ -79,6 +79,16 @@ Update-EnvVar "FFMPEG_PATH" $ffmpegPath
 Update-EnvVar "FFPROBE_PATH" $ffprobePath
 Update-EnvVar "YT_DLP_PATH" $ytDlpPath
 
+Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
+$tokensFile = Join-Path $PSScriptRoot "tokens.json"
+if (-not (Test-Path $tokensFile)) { "[]" | Set-Content $tokensFile }
+
+$channelsFile = Join-Path $PSScriptRoot "channels.json"
+if (-not (Test-Path $channelsFile)) { '{"channels": []}' | Set-Content $channelsFile }
+
+$credentialsFile = Join-Path $PSScriptRoot "credentials.json"
+if (-not (Test-Path $credentialsFile)) { "{}" | Set-Content $credentialsFile }
+
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 Write-Host "Verifying installations:"
 ffmpeg -version | Select-String "version"

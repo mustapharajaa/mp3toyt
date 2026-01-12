@@ -64,6 +64,11 @@ update_env_var "FFMPEG_PATH" "$FFMPEG_LOC"
 update_env_var "FFPROBE_PATH" "$FFPROBE_LOC"
 update_env_var "YT_DLP_PATH" "$YT_DLP_LOC"
 
+echo "Creating placeholder JSON files if missing..."
+[ -f tokens.json ] || echo "[]" > tokens.json
+[ -f channels.json ] || echo '{"channels": []}' > channels.json
+[ -f credentials.json ] || echo "{}" > credentials.json
+
 # Verify installations
 echo "-----------------------------------"
 echo "Verifying installations:"
