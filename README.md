@@ -20,14 +20,12 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-### 2. Install Project Dependencies
+### 2. Run the Application
+Once the setup script finishes, it will have installed Node.js, FFmpeg, yt-dlp, and all project dependencies. You can then run:
 ```bash
-npm install
+npm start
 ```
 
-2. Add your `credentials.json` from Google Cloud Console.
-3. Create a `.env` file with necessary environment variables.
-4. Run the application:
-   ```bash
-   npm start
-   ```
+### 3. Final Configuration
+1. Add your `credentials.json` from Google Cloud Console.
+2. The setup script will have created a `.env` file; you may add additional variables if needed.
