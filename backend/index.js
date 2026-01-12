@@ -670,7 +670,18 @@ async function processVideoQueue() {
 
         jobStatus[sessionId] = { status: 'uploading', message: 'Uploading to YouTube... 0%' };
         const uploadStartTime = Date.now();
-        const videoMetadata = { title, description, tags: tags ? tags.split(',').map(tag => tag.trim()) : [], privacyStatus: publishAt ? 'private' : visibility, ...(publishAt && { publishAt }) };
+
+        // YouTube API fix: if visibility is 'schedule', use 'private' as the status
+        const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
+
+        const videoMetadata = {
+            title,
+            description,
+            tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+            privacyStatus: privacyStatus,
+            ...(publishAt && { publishAt })
+        };
+
         const uploadResult = await uploadVideo(channelId, outputVideoPath, videoMetadata, (percent) => {
             jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
         });

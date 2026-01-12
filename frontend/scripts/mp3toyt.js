@@ -607,14 +607,54 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('upload-form').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
+        const visibility = document.querySelector('.visibility-options button.active').dataset.visibility;
+
+        // Prepare data object
         const data = {
-            sessionId, title: fd.get('title'), channelId: channelSelector.value,
-            visibility: document.querySelector('.visibility-options .active').dataset.visibility,
+            sessionId,
+            title: fd.get('title'),
+            description: fd.get('description'),
+            tags: fd.get('tags'),
+            channelId: channelSelector.value,
+            visibility: visibility,
             overlay: window.currentOverlay
         };
-        jobProgress.style.display = 'block'; progressStatus.textContent = 'Queueing...';
-        const res = await fetch('/create-video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        if ((await res.json()).success) { pollJobStatus(sessionId); }
+
+        // Handle Scheduling
+        if (visibility === 'schedule') {
+            const date = fd.get('scheduleDate');
+            const time = fd.get('scheduleTime');
+            if (!date || !time) {
+                showNotification('Please provide both date and time for scheduling.', 'error');
+                return;
+            }
+            const publishAt = new Date(`${date}T${time}:00`).toISOString();
+            data.publishAt = publishAt;
+            // YouTube requires scheduled videos to be private/public, but we send 'private' to the API
+            // and the API handles the transition. The backend will map this correctly.
+        }
+
+        jobProgress.style.display = 'block';
+        progressStatus.textContent = 'Queueing...';
+
+        try {
+            const res = await fetch('/create-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                pollJobStatus(sessionId);
+            } else {
+                showNotification(result.error || 'Failed to start video creation', 'error');
+                jobProgress.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('Create video fetch error:', err);
+            showNotification('Server communication error', 'error');
+            jobProgress.style.display = 'none';
+        }
     };
 
     function pollJobStatus(sid) {
