@@ -49,7 +49,59 @@
         }
 
         .connect-btn:hover {
-            text-decoration: underline;
+            text-decoration: none;
+            opacity: 0.9;
+        }
+
+        /* Dropdown Menu Styles */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            margin-right: 15px;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #ffffff;
+            min-width: 180px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .dropdown-content button {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dropdown-content button:hover {
+            background-color: #f8f9fa;
+        }
+
+        .dropdown-content i {
+            font-size: 1rem;
+        }
+
+        .show {
+            display: block;
         }
 
         .container {
@@ -362,17 +414,23 @@
 <body>
     <div class="header">
         <a href="/upgrade" class="connect-btn" style="background-color: #f59e0b; margin-right: 15px;">Upgrade</a>
-        <button type="button" id="manage-channels-btn" class="manage-btn"
-            style="display: none; margin-right: 15px; font-weight: bold;">Manage Channels</button>
-        <button type="button" id="manage-cookies-btn" class="connect-btn"
-            style="background-color: #ef4444; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">YouTube
-            Cookies</button>
-        <button type="button" id="manage-tokens-btn" class="connect-btn"
-            style="background-color: #3b82f6; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">YouTube
-            Tokens</button>
-        <button type="button" id="manage-channels-json-btn" class="connect-btn"
-            style="background-color: #10b981; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">Channels
-            Data</button>
+        <div class="dropdown">
+            <button type="button" id="management-btn" class="connect-btn"
+                style="background-color: #4b5563; color: white; padding: 6px 15px; border-radius: 6px; border:none; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-right: 0;">
+                <i class="fas fa-cog"></i> Management <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+            </button>
+            <div id="management-dropdown" class="dropdown-content">
+                <button type="button" id="manage-channels-btn" style="display: none;"><i class="fas fa-list-ul"
+                        style="color: #4b5563;"></i> Manage Channels</button>
+                <button type="button" id="manage-cookies-btn"><i class="fas fa-cookie-bite" style="color: #ef4444;"></i>
+                    YouTube Cookies</button>
+                <button type="button" id="manage-tokens-btn"><i class="fas fa-key" style="color: #3b82f6;"></i> YouTube
+                    Tokens</button>
+                <button type="button" id="manage-channels-json-btn"><i class="fas fa-database"
+                        style="color: #10b981;"></i> Channels Data</button>
+            </div>
+        </div>
+
         <a href="/auth/mp3toyt" id="connect-channel" class="connect-btn">Connect New Channel</a>
     </div>
 
