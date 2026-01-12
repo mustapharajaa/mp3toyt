@@ -799,15 +799,34 @@ router.get('/job-status/:sessionId', (req, res) => {
 // --- Authentication Routes ---
 
 router.get('/auth/mp3toyt', (req, res) => {
-    // Generate the redirect URI based on the request host
-    // This allows it to work on localhost or a real domain
-    const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
-    console.log(`[Auth] Generating URL with redirect: ${redirectUri}`);
+    try {
+        // Generate the redirect URI based on the request host
+        // This allows it to work on localhost or a real domain
+        const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
+        console.log(`[Auth] Generating URL with redirect: ${redirectUri}`);
 
-    // getAuthUrl should accept (redirectUri, context)
-    // context 'mp3toyt' might be used for specific logic if needed, or ignored
-    const authUrl = getAuthUrl(redirectUri, 'mp3toyt');
-    res.redirect(authUrl);
+        // getAuthUrl should accept (redirectUri, context)
+        const authUrl = getAuthUrl(redirectUri, 'mp3toyt');
+        res.redirect(authUrl);
+    } catch (error) {
+        console.error('[Auth Error]', error);
+        res.status(500).send(`
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ff4444; background: #fff5f5; border-radius: 8px; max-width: 600px; margin: 50px auto;">
+                <h2 style="color: #cc0000;">YouTube Authentication Error</h2>
+                <p><strong>Message:</strong> ${error.message}</p>
+                <hr>
+                <p>To fix this:</p>
+                <ol>
+                    <li>Go to the <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>.</li>
+                    <li>Download your <strong>OAuth 2.0 Client ID</strong> JSON file.</li>
+                    <li>Rename it to <code>credentials.json</code>.</li>
+                    <li>Upload/Place it in your project root directory.</li>
+                    <li>Restart the server and try again.</li>
+                </ol>
+                <button onclick="window.history.back()" style="padding: 10px 20px; cursor: pointer;">Go Back</button>
+            </div>
+        `);
+    }
 });
 
 router.get('/mp3toyt/oauth2callback', async (req, res) => {

@@ -16,7 +16,17 @@ const MP3TOYT_REDIRECT_URI = process.env.YOUTUBE_REDIRECT_URI_MP3TOYT;
 
 
 function loadCredentials() {
-    return JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+    if (!fs.existsSync(CREDENTIALS_PATH)) {
+        throw new Error('credentials.json file is missing.');
+    }
+    const content = fs.readFileSync(CREDENTIALS_PATH, 'utf8');
+    const credentials = JSON.parse(content);
+
+    if (!credentials || (!credentials.installed && !credentials.web)) {
+        throw new Error('credentials.json is empty or invalid. Please download it from Google Cloud Console and replace the placeholder.');
+    }
+
+    return credentials;
 }
 
 // Import file system functions to read channel data
@@ -203,7 +213,9 @@ export async function authorize(channelId) {
 
     console.log(`[YouTubeAPI] Authorizing with channel ID: ${channelId}`);
     const credentials = loadCredentials();
-    const { client_secret, client_id } = credentials.installed || credentials.web;
+    const config = credentials.installed || credentials.web;
+    if (!config) throw new Error('Invalid credentials format: missing "installed" or "web" property.');
+    const { client_secret, client_id } = config;
 
     // Use the redirect URI from environment variable
     let baseUrl = (process.env.BASE_URL || 'http://localhost:8000').replace(/\/$/, ''); // Remove trailing slash if present
@@ -278,7 +290,9 @@ export async function authorize(channelId) {
 // Helper to run OAuth2 flow (one-time setup)
 export function getAuthUrl(redirectUri, state = null) {
     const credentials = loadCredentials();
-    const { client_secret, client_id } = credentials.installed || credentials.web;
+    const config = credentials.installed || credentials.web;
+    if (!config) throw new Error('Invalid credentials format: missing "installed" or "web" property.');
+    const { client_secret, client_id } = config;
 
     // Force HTTPS for production domain to prevent OAuth mismatch errors
     if (redirectUri && redirectUri.includes('test.liveenity.com') && redirectUri.startsWith('http://')) {
@@ -360,7 +374,9 @@ export async function saveTokenFromCode(code, redirectUri, state = null) {
 
     try {
         const credentials = loadCredentials();
-        const { client_secret, client_id } = credentials.installed || credentials.web;
+        const config = credentials.installed || credentials.web;
+        if (!config) throw new Error('Invalid credentials format in saveTokenFromCode.');
+        const { client_secret, client_id } = config;
 
         console.log(`[YouTubeAPI] Using redirect_uri from caller: ${redirectUri}`);
 
