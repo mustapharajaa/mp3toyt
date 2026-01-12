@@ -21,10 +21,16 @@ Write-Host "Installing yt-dlp..." -ForegroundColor Yellow
 choco install yt-dlp -y
 
 # Detect Paths
-$ffmpegPath = (Get-Command ffmpeg.exe).Source
-$ytDlpPath = (Get-Command yt-dlp.exe).Source
+$ffmpegPath = (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue).Source
+$ffprobePath = (Get-Command ffprobe.exe -ErrorAction SilentlyContinue).Source
+$ytDlpPath = (Get-Command yt-dlp.exe -ErrorAction SilentlyContinue).Source
+
+if (-not $ffmpegPath) { Write-Error "FFmpeg not found!"; exit }
+if (-not $ffprobePath) { Write-Error "FFprobe not found!"; exit }
+if (-not $ytDlpPath) { Write-Error "yt-dlp not found!"; exit }
 
 Write-Host "Detected FFmpeg at: $ffmpegPath" -ForegroundColor Green
+Write-Host "Detected FFprobe at: $ffprobePath" -ForegroundColor Green
 Write-Host "Detected yt-dlp at: $ytDlpPath" -ForegroundColor Green
 
 # Update .env file
@@ -35,30 +41,40 @@ if (-not (Test-Path $envFile)) {
 }
 
 function Update-EnvVar($name, $value) {
+    $content = @()
     if (Test-Path $envFile) {
-        $content = Get-Content $envFile
-    } else {
-        $content = @()
+        $content = @(Get-Content $envFile)
     }
     
     $escapedValue = $value -replace '\\', '\\'
     $line = "$name=$escapedValue"
     
-    if ($content -match "^$name=") {
-        $content = $content -replace "^$name=.*", $line
-    } else {
+    $found = $false
+    for ($i = 0; $i -lt $content.Count; $i++) {
+        if ($content[$i] -match "^$name=") {
+            $content[$i] = $line
+            $found = $true
+            break
+        }
+    }
+    
+    if (-not $found) {
         $content += $line
     }
-    $content | Set-Content $envFile
+    
+    # Filter out any empty lines and write back
+    $content | Where-Object { $_.Trim() -ne "" } | Set-Content $envFile
 }
 
 Write-Host "Updating .env file with Windows paths..." -ForegroundColor Yellow
 Update-EnvVar "FFMPEG_PATH" $ffmpegPath
+Update-EnvVar "FFPROBE_PATH" $ffprobePath
 Update-EnvVar "YT_DLP_PATH" $ytDlpPath
 
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 Write-Host "Verifying installations:"
 ffmpeg -version | Select-String "version"
+ffprobe -version | Select-String "version"
 yt-dlp --version
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 

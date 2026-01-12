@@ -18,6 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const FFMPEG_PATH = process.env.FFMPEG_PATH;
+const FFPROBE_PATH = process.env.FFPROBE_PATH;
 const YT_DLP_PATH = process.env.YT_DLP_PATH;
 const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH;
 
@@ -27,6 +28,10 @@ if (!FFMPEG_PATH || !fs.existsSync(FFMPEG_PATH)) {
     process.exit(1);
 }
 ffmpeg.setFfmpegPath(FFMPEG_PATH);
+
+if (FFPROBE_PATH && fs.existsSync(FFPROBE_PATH)) {
+    ffmpeg.setFfprobePath(FFPROBE_PATH);
+}
 
 if (!YT_DLP_PATH || !fs.existsSync(YT_DLP_PATH)) {
     console.error('🔴 FATAL: YT_DLP_PATH is not defined in your .env file or the path is incorrect.');

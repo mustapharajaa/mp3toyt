@@ -23,9 +23,11 @@ sudo python3 -m pip install -U yt-dlp
 
 # Detect Paths
 FFMPEG_LOC=$(which ffmpeg)
+FFPROBE_LOC=$(which ffprobe)
 YT_DLP_LOC=$(which yt-dlp)
 
 echo "Detected FFmpeg at: $FFMPEG_LOC"
+echo "Detected FFprobe at: $FFPROBE_LOC"
 echo "Detected yt-dlp at: $YT_DLP_LOC"
 
 # Update .env file
@@ -50,12 +52,14 @@ update_env_var() {
 }
 
 update_env_var "FFMPEG_PATH" "$FFMPEG_LOC"
+update_env_var "FFPROBE_PATH" "$FFPROBE_LOC"
 update_env_var "YT_DLP_PATH" "$YT_DLP_LOC"
 
 # Verify installations
 echo "-----------------------------------"
 echo "Verifying installations:"
 ffmpeg -version | head -n 1
+ffprobe -version | head -n 1
 yt-dlp --version
 python3 --version
 echo "-----------------------------------"
