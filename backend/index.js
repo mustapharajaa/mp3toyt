@@ -934,4 +934,32 @@ router.post('/save-cookies', async (req, res) => {
     }
 });
 
+// --- Credentials Management ---
+router.get('/get-credentials', async (req, res) => {
+    try {
+        if (await fs.pathExists(CREDENTIALS_PATH)) {
+            const content = await fs.readFile(CREDENTIALS_PATH, 'utf8');
+            res.json({ success: true, credentials: content });
+        } else {
+            res.json({ success: true, credentials: '{}' });
+        }
+    } catch (error) {
+        console.error('Error reading credentials:', error);
+        res.status(500).json({ success: false, message: 'Failed to read credentials file.' });
+    }
+});
+
+router.post('/save-credentials', async (req, res) => {
+    const { credentials } = req.body;
+    try {
+        // Validate JSON
+        JSON.parse(credentials);
+        await fs.writeFile(CREDENTIALS_PATH, credentials, 'utf8');
+        res.json({ success: true, message: 'Credentials saved successfully.' });
+    } catch (error) {
+        console.error('Error saving credentials:', error);
+        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save credentials file.' });
+    }
+});
+
 export default router;

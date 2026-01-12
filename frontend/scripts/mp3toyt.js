@@ -709,7 +709,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('click', (e) => {
         if (e.target === cookiesModal) closeCookies();
+        if (e.target === credentialsModal) closeCredentials();
     });
+
+    // --- YouTube Credentials Management ---
+    const credentialsModal = document.getElementById('credentialsModal');
+    const manageCredentialsBtn = document.getElementById('manage-credentials-btn');
+    const closeCredentialsBtn = document.getElementById('close-credentials-modal');
+    const cancelCredentialsBtn = document.getElementById('cancel-credentials-btn');
+    const saveCredentialsBtn = document.getElementById('save-credentials-btn');
+    const credentialsEditor = document.getElementById('credentials-editor');
+
+    if (manageCredentialsBtn) {
+        manageCredentialsBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/get-credentials');
+                const data = await res.json();
+                if (data.success) {
+                    credentialsEditor.value = data.credentials || '{}';
+                    credentialsModal.style.display = 'flex';
+                } else {
+                    showNotification('Failed to load credentials', 'error');
+                }
+            } catch (err) {
+                console.error('Error fetching credentials:', err);
+                showNotification('Error loading credentials', 'error');
+            }
+        });
+    }
+
+    const closeCredentials = () => { credentialsModal.style.display = 'none'; };
+    if (closeCredentialsBtn) closeCredentialsBtn.addEventListener('click', closeCredentials);
+    if (cancelCredentialsBtn) cancelCredentialsBtn.addEventListener('click', closeCredentials);
+
+    if (saveCredentialsBtn) {
+        saveCredentialsBtn.addEventListener('click', async () => {
+            saveCredentialsBtn.disabled = true;
+            saveCredentialsBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: credentialsEditor.value })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('Credentials saved successfully!');
+                    closeCredentials();
+                } else {
+                    showNotification(data.message || 'Failed to save credentials', 'error');
+                }
+            } catch (err) {
+                console.error('Error saving credentials:', err);
+                showNotification('Error saving credentials', 'error');
+            } finally {
+                saveCredentialsBtn.disabled = false;
+                saveCredentialsBtn.textContent = 'Save Credentials';
+            }
+        });
+    }
 
     loadChannels();
     checkSessionStatus();
