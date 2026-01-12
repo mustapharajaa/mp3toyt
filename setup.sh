@@ -21,6 +21,37 @@ sudo apt-get install -y python3 python3-pip
 echo "Installing/Updating yt-dlp..."
 sudo python3 -m pip install -U yt-dlp
 
+# Detect Paths
+FFMPEG_LOC=$(which ffmpeg)
+YT_DLP_LOC=$(which yt-dlp)
+
+echo "Detected FFmpeg at: $FFMPEG_LOC"
+echo "Detected yt-dlp at: $YT_DLP_LOC"
+
+# Update .env file
+echo "Updating .env file with Linux paths..."
+ENV_FILE=".env"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Creating new .env file..."
+    touch "$ENV_FILE"
+fi
+
+update_env_var() {
+    local var_name=$1
+    local var_value=$2
+    if grep -q "^${var_name}=" "$ENV_FILE"; then
+        # Replace existing value
+        sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" "$ENV_FILE"
+    else
+        # Append new value
+        echo "${var_name}=${var_value}" >> "$ENV_FILE"
+    fi
+}
+
+update_env_var "FFMPEG_PATH" "$FFMPEG_LOC"
+update_env_var "YT_DLP_PATH" "$YT_DLP_LOC"
+
 # Verify installations
 echo "-----------------------------------"
 echo "Verifying installations:"
@@ -29,4 +60,5 @@ yt-dlp --version
 python3 --version
 echo "-----------------------------------"
 
-echo "Setup complete! You can now run the application."
+echo "Setup complete! Your .env file has been updated."
+echo "You can now run 'npm install' and 'npm start'."
