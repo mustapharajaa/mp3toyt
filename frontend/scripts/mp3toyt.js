@@ -650,6 +650,67 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- YouTube Cookies Management ---
+    const cookiesModal = document.getElementById('cookiesModal');
+    const manageCookiesBtn = document.getElementById('manage-cookies-btn');
+    const closeCookiesBtn = document.getElementById('close-cookies-modal');
+    const cancelCookiesBtn = document.getElementById('cancel-cookies-btn');
+    const saveCookiesBtn = document.getElementById('save-cookies-btn');
+    const cookiesEditor = document.getElementById('cookies-editor');
+
+    if (manageCookiesBtn) {
+        manageCookiesBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/get-cookies');
+                const data = await res.json();
+                if (data.success) {
+                    cookiesEditor.value = data.cookies || '';
+                    cookiesModal.style.display = 'flex';
+                } else {
+                    showNotification('Failed to load cookies', 'error');
+                }
+            } catch (err) {
+                console.error('Error fetching cookies:', err);
+                showNotification('Error loading cookies', 'error');
+            }
+        });
+    }
+
+    const closeCookies = () => { cookiesModal.style.display = 'none'; };
+    if (closeCookiesBtn) closeCookiesBtn.addEventListener('click', closeCookies);
+    if (cancelCookiesBtn) cancelCookiesBtn.addEventListener('click', closeCookies);
+
+    if (saveCookiesBtn) {
+        saveCookiesBtn.addEventListener('click', async () => {
+            saveCookiesBtn.disabled = true;
+            saveCookiesBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-cookies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cookies: cookiesEditor.value })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('Cookies saved successfully!');
+                    closeCookies();
+                } else {
+                    showNotification('Failed to save cookies', 'error');
+                }
+            } catch (err) {
+                console.error('Error saving cookies:', err);
+                showNotification('Error saving cookies', 'error');
+            } finally {
+                saveCookiesBtn.disabled = false;
+                saveCookiesBtn.textContent = 'Save Cookies';
+            }
+        });
+    }
+
+    window.addEventListener('click', (e) => {
+        if (e.target === cookiesModal) closeCookies();
+    });
+
     loadChannels();
     checkSessionStatus();
 });

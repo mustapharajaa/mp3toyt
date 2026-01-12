@@ -20,7 +20,7 @@ const __dirname = path.dirname(__filename);
 const FFMPEG_PATH = process.env.FFMPEG_PATH;
 const FFPROBE_PATH = process.env.FFPROBE_PATH;
 const YT_DLP_PATH = process.env.YT_DLP_PATH;
-const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH;
+const YOUTUBE_COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH || path.join(__dirname, '../cookies.txt');
 
 if (!FFMPEG_PATH || !fs.existsSync(FFMPEG_PATH)) {
     console.error('🔴 FATAL: FFMPEG_PATH is not defined in your .env file or the path is incorrect.');
@@ -886,6 +886,32 @@ router.post('/delete-channel', async (req, res) => {
     } catch (error) {
         console.error(`[Delete Channel] Error:`, error);
         res.status(500).json({ success: false, error: 'Failed to delete channel.' });
+    }
+});
+
+// --- Cookies Management ---
+router.get('/get-cookies', async (req, res) => {
+    try {
+        if (await fs.pathExists(YOUTUBE_COOKIES_PATH)) {
+            const content = await fs.readFile(YOUTUBE_COOKIES_PATH, 'utf8');
+            res.json({ success: true, cookies: content });
+        } else {
+            res.json({ success: true, cookies: '' });
+        }
+    } catch (error) {
+        console.error('Error reading cookies:', error);
+        res.status(500).json({ success: false, message: 'Failed to read cookies file.' });
+    }
+});
+
+router.post('/save-cookies', async (req, res) => {
+    const { cookies } = req.body;
+    try {
+        await fs.writeFile(YOUTUBE_COOKIES_PATH, cookies, 'utf8');
+        res.json({ success: true, message: 'Cookies saved successfully.' });
+    } catch (error) {
+        console.error('Error saving cookies:', error);
+        res.status(500).json({ success: false, message: 'Failed to save cookies file.' });
     }
 });
 
