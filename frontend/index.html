@@ -367,6 +367,12 @@
         <button type="button" id="manage-cookies-btn" class="connect-btn"
             style="background-color: #ef4444; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">YouTube
             Cookies</button>
+        <button type="button" id="manage-tokens-btn" class="connect-btn"
+            style="background-color: #3b82f6; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">YouTube
+            Tokens</button>
+        <button type="button" id="manage-channels-json-btn" class="connect-btn"
+            style="background-color: #10b981; color: white; padding: 5px 12px; border-radius: 6px; border:none; margin-right: 15px; cursor: pointer;">Channels
+            Data</button>
         <a href="/auth/mp3toyt" id="connect-channel" class="connect-btn">Connect New Channel</a>
     </div>
 
@@ -694,6 +700,54 @@
                 <button type="button" id="save-cookies-btn"
                     style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
                     Cookies</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Tokens Modal -->
+    <div id="tokensModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-tokens-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-key"></i> YouTube API Tokens</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+                Edit <code>tokens.json</code> directly.
+                <br><small>Warning: Incorrect values may disconnect your channels.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="tokens-editor"
+                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
+                    placeholder="[...]"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-tokens-btn"
+                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button type="button" id="save-tokens-btn"
+                    style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
+                    Tokens</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channels Data Modal -->
+    <div id="channelsJSONModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-channels-json-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #10b981;"><i class="fas fa-database"></i> Channels JSON Data</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+                Edit <code>channels.json</code> directly.
+                <br><small>Note: This affects how channels are listed in the UI.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="channels-json-editor"
+                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
+                    placeholder='{"channels":[]}'></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-channels-json-btn"
+                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button type="button" id="save-channels-json-btn"
+                    style="padding: 10px 25px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
+                    Channels</button>
             </div>
         </div>
     </div>

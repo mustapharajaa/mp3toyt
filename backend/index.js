@@ -1,4 +1,4 @@
-import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH } from './config.js'; // Load variables
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -967,28 +967,26 @@ router.post('/delete-channel', async (req, res) => {
 
     try {
         // 1. Remove from channels.json
-        const channelsPath = path.join(__dirname, '../channels.json');
-        if (await fs.exists(channelsPath)) {
-            const data = await fs.readJson(channelsPath);
+        if (await fs.exists(CHANNELS_PATH)) {
+            const data = await fs.readJson(CHANNELS_PATH);
             if (data.channels) {
                 const initialLength = data.channels.length;
                 data.channels = data.channels.filter(c => c.channelId !== channelId);
                 if (data.channels.length < initialLength) {
-                    await fs.writeJson(channelsPath, data, { spaces: 2 });
-                    console.log(`[Delete Channel] Removed from channels.json`);
+                    await fs.writeJson(CHANNELS_PATH, data, { spaces: 2 });
+                    console.log(`[Delete Channel] Removed from ${CHANNELS_PATH}`);
                 }
             }
         }
 
         // 2. Remove from tokens.json (Actual Auth Revocation from app)
-        const tokensPath = path.join(__dirname, '../tokens.json');
-        if (await fs.exists(tokensPath)) {
-            let tokens = await fs.readJson(tokensPath);
+        if (await fs.exists(TOKEN_PATH)) {
+            let tokens = await fs.readJson(TOKEN_PATH);
             const initialLength = tokens.length;
             tokens = tokens.filter(t => t.channelId !== channelId);
             if (tokens.length < initialLength) {
-                await fs.writeJson(tokensPath, tokens, { spaces: 2 });
-                console.log(`[Delete Channel] Removed from tokens.json`);
+                await fs.writeJson(TOKEN_PATH, tokens, { spaces: 2 });
+                console.log(`[Delete Channel] Removed from ${TOKEN_PATH}`);
             }
         }
 
@@ -1050,6 +1048,60 @@ router.post('/save-credentials', async (req, res) => {
     } catch (error) {
         console.error('Error saving credentials:', error);
         res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save credentials file.', error: error.message });
+    }
+});
+
+// --- Tokens Management ---
+router.get('/get-tokens', async (req, res) => {
+    try {
+        if (await fs.pathExists(TOKEN_PATH)) {
+            const content = await fs.readFile(TOKEN_PATH, 'utf8');
+            res.json({ success: true, tokens: content });
+        } else {
+            res.json({ success: true, tokens: '[]' });
+        }
+    } catch (error) {
+        console.error('Error reading tokens:', error);
+        res.status(500).json({ success: false, message: 'Failed to read tokens file.', error: error.message });
+    }
+});
+
+router.post('/save-tokens', async (req, res) => {
+    const { tokens } = req.body;
+    try {
+        JSON.parse(tokens); // Validate JSON
+        await fs.writeFile(TOKEN_PATH, tokens, 'utf8');
+        res.json({ success: true, message: 'Tokens saved successfully.' });
+    } catch (error) {
+        console.error('Error saving tokens:', error);
+        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save tokens file.', error: error.message });
+    }
+});
+
+// --- Channels Management ---
+router.get('/get-channels-json', async (req, res) => {
+    try {
+        if (await fs.pathExists(CHANNELS_PATH)) {
+            const content = await fs.readFile(CHANNELS_PATH, 'utf8');
+            res.json({ success: true, channels: content });
+        } else {
+            res.json({ success: true, channels: '{"channels":[]}' });
+        }
+    } catch (error) {
+        console.error('Error reading channels file:', error);
+        res.status(500).json({ success: false, message: 'Failed to read channels file.', error: error.message });
+    }
+});
+
+router.post('/save-channels-json', async (req, res) => {
+    const { channels } = req.body;
+    try {
+        JSON.parse(channels); // Validate JSON
+        await fs.writeFile(CHANNELS_PATH, channels, 'utf8');
+        res.json({ success: true, message: 'Channels data saved successfully.' });
+    } catch (error) {
+        console.error('Error saving channels file:', error);
+        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save channels file.', error: error.message });
     }
 });
 

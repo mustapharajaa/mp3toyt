@@ -709,7 +709,124 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('click', (e) => {
         if (e.target === cookiesModal) closeCookies();
+        if (e.target === tokensModal) closeTokens();
+        if (e.target === channelsJSONModal) closeChannelsJSON();
     });
+
+    // --- YouTube Tokens Management ---
+    const tokensModal = document.getElementById('tokensModal');
+    const manageTokensBtn = document.getElementById('manage-tokens-btn');
+    const closeTokensBtn = document.getElementById('close-tokens-modal');
+    const cancelTokensBtn = document.getElementById('cancel-tokens-btn');
+    const saveTokensBtn = document.getElementById('save-tokens-btn');
+    const tokensEditor = document.getElementById('tokens-editor');
+
+    if (manageTokensBtn) {
+        manageTokensBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/get-tokens');
+                const data = await res.json();
+                if (data.success) {
+                    tokensEditor.value = data.tokens || '[]';
+                    tokensModal.style.display = 'flex';
+                } else {
+                    showNotification('Failed to load tokens', 'error');
+                }
+            } catch (err) {
+                console.error('Error fetching tokens:', err);
+                showNotification('Error loading tokens', 'error');
+            }
+        });
+    }
+
+    const closeTokens = () => { tokensModal.style.display = 'none'; };
+    if (closeTokensBtn) closeTokensBtn.addEventListener('click', closeTokens);
+    if (cancelTokensBtn) cancelTokensBtn.addEventListener('click', closeTokens);
+
+    if (saveTokensBtn) {
+        saveTokensBtn.addEventListener('click', async () => {
+            saveTokensBtn.disabled = true;
+            saveTokensBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tokens: tokensEditor.value })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('Tokens saved successfully!');
+                    closeTokens();
+                } else {
+                    showNotification(data.message || 'Failed to save tokens', 'error');
+                }
+            } catch (err) {
+                console.error('Error saving tokens:', err);
+                showNotification('Error saving tokens', 'error');
+            } finally {
+                saveTokensBtn.disabled = false;
+                saveTokensBtn.textContent = 'Save Tokens';
+            }
+        });
+    }
+
+    // --- Channels JSON Management ---
+    const channelsJSONModal = document.getElementById('channelsJSONModal');
+    const manageChannelsJSONBtn = document.getElementById('manage-channels-json-btn');
+    const closeChannelsJSONBtn = document.getElementById('close-channels-json-modal');
+    const cancelChannelsJSONBtn = document.getElementById('cancel-channels-json-btn');
+    const saveChannelsJSONBtn = document.getElementById('save-channels-json-btn');
+    const channelsJSONEditor = document.getElementById('channels-json-editor');
+
+    if (manageChannelsJSONBtn) {
+        manageChannelsJSONBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/get-channels-json');
+                const data = await res.json();
+                if (data.success) {
+                    channelsJSONEditor.value = data.channels || '{"channels":[]}';
+                    channelsJSONModal.style.display = 'flex';
+                } else {
+                    showNotification('Failed to load channels data', 'error');
+                }
+            } catch (err) {
+                console.error('Error fetching channels data:', err);
+                showNotification('Error loading channels data', 'error');
+            }
+        });
+    }
+
+    const closeChannelsJSON = () => { channelsJSONModal.style.display = 'none'; };
+    if (closeChannelsJSONBtn) closeChannelsJSONBtn.addEventListener('click', closeChannelsJSON);
+    if (cancelChannelsJSONBtn) cancelChannelsJSONBtn.addEventListener('click', closeChannelsJSON);
+
+    if (saveChannelsJSONBtn) {
+        saveChannelsJSONBtn.addEventListener('click', async () => {
+            saveChannelsJSONBtn.disabled = true;
+            saveChannelsJSONBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-channels-json', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channels: channelsJSONEditor.value })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('Channels data saved successfully!');
+                    closeChannelsJSON();
+                    loadChannels(); // Refresh channel list UI
+                } else {
+                    showNotification(data.message || 'Failed to save channels data', 'error');
+                }
+            } catch (err) {
+                console.error('Error saving channels data:', err);
+                showNotification('Error saving channels data', 'error');
+            } finally {
+                saveChannelsJSONBtn.disabled = false;
+                saveChannelsJSONBtn.textContent = 'Save Channels';
+            }
+        });
+    }
 
     loadChannels();
     checkSessionStatus();
