@@ -290,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     imageUrlInput.addEventListener('change', (e) => handleImageUrl(e.target.value));
+    audioUrlInput.addEventListener('change', (e) => handleAudioUrl(e.target.value));
 
     if (pasteAudioBtn) {
         pasteAudioBtn.addEventListener('click', async () => {

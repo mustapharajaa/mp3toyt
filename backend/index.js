@@ -70,7 +70,6 @@ router.get('/download-audio', async (req, res) => {
             '--socket-timeout', '23',
             '--no-playlist',
             '--concurrent-fragments', '8',
-            '--downloader', 'aria2c',
             '--no-part', // Do not use .part files
             '--ppa', 'ffmpeg_i:-ss 0', // Force a sanity check on the file with ffmpeg
             '--ffmpeg-location', FFMPEG_PATH,
