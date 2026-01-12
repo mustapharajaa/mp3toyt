@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const channelList = document.getElementById('channel-list');
             channelList.innerHTML = '';
             if (channels.length > 0) {
-                document.getElementById('manage-channels-btn').style.display = 'inline-block';
+                document.getElementById('manage-channels-btn').style.display = 'block';
                 const selectChannel = (id) => {
                     document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('selected'));
                     const el = channelList.querySelector(`.channel-item[data-id="${id}"]`);
@@ -122,11 +122,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const manageChannelsBtn = document.getElementById('manage-channels-btn');
     if (manageChannelsBtn) {
-        manageChannelsBtn.addEventListener('click', () => {
+        manageChannelsBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent dropdown from closing
             const channelList = document.getElementById('channel-list');
             const isManaging = channelList.classList.toggle('manage-mode');
-            manageChannelsBtn.textContent = isManaging ? 'Done Managing' : 'Manage Channels';
-            manageChannelsBtn.style.color = isManaging ? '#ef4444' : '';
+            manageChannelsBtn.innerHTML = isManaging ?
+                '<i class="fas fa-check" style="color: #22c55e;"></i> Done Managing' :
+                '<i class="fas fa-list-ul" style="color: #4b5563;"></i> Manage Channels';
+            manageChannelsBtn.style.color = isManaging ? '#22c55e' : '';
         });
     }
 
@@ -711,7 +714,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === cookiesModal) closeCookies();
         if (e.target === tokensModal) closeTokens();
         if (e.target === channelsJSONModal) closeChannelsJSON();
+
+        // Close management dropdown when clicking outside
+        if (managementDropdown && !managementDropdown.contains(e.target) && e.target !== managementBtn) {
+            managementDropdown.classList.remove('show');
+        }
     });
+
+    // --- Management Dropdown ---
+    const managementBtn = document.getElementById('management-btn');
+    const managementDropdown = document.getElementById('management-dropdown');
+
+    if (managementBtn && managementDropdown) {
+        managementBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            managementDropdown.classList.toggle('show');
+        });
+    }
 
     // --- YouTube Tokens Management ---
     const tokensModal = document.getElementById('tokensModal');
