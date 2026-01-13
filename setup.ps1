@@ -174,12 +174,12 @@ Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor C
 pm2 stop cf-tunnel 2>$null | Out-Null
 pm2 delete cf-tunnel 2>$null | Out-Null
 
-# Detect absolute path to cloudflared to avoid PM2 resolution issues on Windows
+# Detect absolute path to cloudflared
 $cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
-if (-not $cfPath) { $cfPath = 'cloudflared' } # Fallback
+if (-not $cfPath) { $cfPath = 'cloudflared' }
 
-# Use the absolute path and the -- separator to pass arguments correctly
-pm2 start $cfPath --name cf-tunnel -- tunnel run --url http://localhost:8000 mp3-tunnel
+# Standard "tunnel run" command. Settings (localhost:8000) are handled in the Dashboard.
+pm2 start $cfPath --name cf-tunnel -- tunnel run mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan

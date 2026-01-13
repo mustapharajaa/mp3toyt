@@ -137,7 +137,7 @@ cloudflared tunnel route dns -f mp3-tunnel "$DOMAIN_ONLY"
 # Start Tunnel with PM2
 echo "Starting Cloudflare Tunnel background process..."
 pm2 delete cf-tunnel 2>/dev/null || true
-pm2 start "cloudflared tunnel --url http://localhost:8000 run mp3-tunnel" --name cf-tunnel
+pm2 start cloudflared --name cf-tunnel -- tunnel run mp3-tunnel
 pm2 save
 
 echo "-----------------------------------"
