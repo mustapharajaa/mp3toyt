@@ -122,12 +122,28 @@ echo "-----------------------------------"
 
 cloudflared tunnel login
 
-echo ""
+echo "--- Cloudflare Tunnel Setup ---"
+# Check if tunnel already exists
+if ! cloudflared tunnel list | grep -q "mp3-tunnel"; then
+    echo "Creating Cloudflare Tunnel: mp3-tunnel..."
+    cloudflared tunnel create mp3-tunnel
+fi
+
+# Extract domain for DNS routing (remove https://)
+DOMAIN_ONLY=$(echo "$USER_DOMAIN" | sed -E 's|https?://||' | sed -E 's|/.*||')
+echo "Routing domain $DOMAIN_ONLY to tunnel..."
+cloudflared tunnel route dns -f mp3-tunnel "$DOMAIN_ONLY"
+
+# Start Tunnel with PM2
+echo "Starting Cloudflare Tunnel background process..."
+pm2 delete cf-tunnel 2>/dev/null || true
+pm2 start "cloudflared tunnel --url http://localhost:8000 run mp3-tunnel" --name cf-tunnel
+pm2 save
+
 echo "-----------------------------------"
-echo "🔗 FINAL STEP: CONFIGURE DOMAIN"
-echo "Opening Cloudflare Dashboard..."
-echo "Navigate to: Networks -> Tunnels -> Public Hostnames"
-echo "Map https://liveenity.com to http://localhost:8000"
+echo "🚀 PRODUCTION READY!"
+echo "1. Your app is running in the background via PM2."
+echo "2. Your domain $DOMAIN_ONLY is now linked to this server!"
 echo "-----------------------------------"
 
 # Best effort to open browser on Linux

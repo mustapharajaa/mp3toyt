@@ -151,11 +151,29 @@ Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 cloudflared tunnel login
 
+Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
+# Check if tunnel already exists
+$tunnels = cloudflared tunnel list
+if ($tunnels -notmatch 'mp3-tunnel') {
+    Write-Host 'Creating Cloudflare Tunnel: mp3-tunnel...' -ForegroundColor Yellow
+    cloudflared tunnel create mp3-tunnel
+}
+
+# Extract domain for DNS routing (remove https://)
+$domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
+Write-Host "Routing domain $domainOnly to tunnel..." -ForegroundColor Yellow
+cloudflared tunnel route dns -f mp3-tunnel $domainOnly
+
+# Start Tunnel with PM2
+Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
+pm2 delete cf-tunnel 2>$null | Out-Null
+pm2 start "cloudflared tunnel --url http://localhost:8000 run mp3-tunnel" --name cf-tunnel
+pm2 save
+
 Write-Host '-----------------------------------' -ForegroundColor Cyan
-Write-Host 'FINAL STEP: CONFIGURE DOMAIN'
-Write-Host 'I am opening the Cloudflare Dashboard for you now...'
-Write-Host 'Navigate to: Networks -> Tunnels -> Public Hostnames'
-Write-Host 'Map https://liveenity.com to http://localhost:8000'
+Write-Host 'PRODUCTION READY!' -ForegroundColor Green
+Write-Host '1. Your app is running in the background via PM2.'
+Write-Host "2. Your domain $domainOnly is now linked to this server!"
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
