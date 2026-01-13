@@ -118,6 +118,15 @@ if (-not (Test-Path $tokensFile)) {
 $channelsFile = Join-Path $PSScriptRoot "channels.json"
 if (-not (Test-Path $channelsFile)) { 
     [System.IO.File]::WriteAllText($channelsFile, '{"channels": []}')
+} else {
+    # Check for corruption (BOM) and fix if needed
+    try {
+        $content = Get-Content $channelsFile -Raw
+        $null = ConvertFrom-Json $content
+    } catch {
+        Write-Host "Detected corrupted channels.json (BOM). Repairing..." -ForegroundColor Yellow
+        [System.IO.File]::WriteAllText($channelsFile, '{"channels": []}')
+    }
 }
 
 $facebookTokensFile = Join-Path $PSScriptRoot "facebook_tokens.json"
