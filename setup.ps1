@@ -97,11 +97,11 @@ Update-EnvVar "FFPROBE_PATH" $ffprobePath
 Update-EnvVar "YT_DLP_PATH" $ytDlpPath
 
 # Domain Setup
-Write-Host "`n--- Domain Setup (liveenity.com) ---" -ForegroundColor Cyan
-$currentBaseUrl = "https://liveenity.com"
+Write-Host '--- Domain Setup (liveenity.com) ---' -ForegroundColor Cyan
+$currentBaseUrl = 'https://liveenity.com'
 $userInput = Read-Host "Enter your production domain (default: $currentBaseUrl)"
 if ($userInput) { $currentBaseUrl = $userInput }
-Update-EnvVar "BASE_URL" $currentBaseUrl
+Update-EnvVar 'BASE_URL' $currentBaseUrl
 Write-Host "BASE_URL updated to: $currentBaseUrl" -ForegroundColor Green
 
 Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
@@ -133,32 +133,32 @@ Write-Host "Setup complete! Your .env file has been updated." -ForegroundColor G
 $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 
 # Run npm install
-Write-Host "Running npm install..." -ForegroundColor Cyan
+Write-Host 'Running npm install...' -ForegroundColor Cyan
 npm install
 
 # Start Application with PM2
-Write-Host "`nStarting application with PM2..." -ForegroundColor Cyan
+Write-Host 'Starting application with PM2...' -ForegroundColor Cyan
 pm2 delete mp3toyt 2>$null | Out-Null
 pm2 start backend/server.js --name mp3toyt
 pm2 save
 
-Write-Host "`n-----------------------------------" -ForegroundColor Cyan
-Write-Host "🚀 PRODUCTION READY!" -ForegroundColor Green
-Write-Host "1. Your app is running in the background via PM2."
-Write-Host "2. LOGIN REQUIRED: A unique URL will appear below."
-Write-Host "👉 COPY and OPEN this URL in your local browser to link your domain."
-Write-Host "-----------------------------------" -ForegroundColor Cyan
+Write-Host '-----------------------------------' -ForegroundColor Cyan
+Write-Host 'PRODUCTION READY!' -ForegroundColor Green
+Write-Host '1. Your app is running in the background via PM2.'
+Write-Host '2. LOGIN REQUIRED: A unique URL will appear below.'
+Write-Host 'COPY and OPEN this URL in your local browser to link your domain.'
+Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 cloudflared tunnel login
 
-Write-Host "`n-----------------------------------" -ForegroundColor Cyan
-Write-Host "🔗 FINAL STEP: CONFIGURE DOMAIN"
-Write-Host "I am opening the Cloudflare Dashboard for you now..."
-Write-Host "Navigate to: Networks -> Tunnels -> Public Hostnames"
-Write-Host "Map https://liveenity.com to http://localhost:8000"
-Write-Host "-----------------------------------" -ForegroundColor Cyan
+Write-Host '-----------------------------------' -ForegroundColor Cyan
+Write-Host 'FINAL STEP: CONFIGURE DOMAIN'
+Write-Host 'I am opening the Cloudflare Dashboard for you now...'
+Write-Host 'Navigate to: Networks -> Tunnels -> Public Hostnames'
+Write-Host 'Map https://liveenity.com to http://localhost:8000'
+Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
-Start-Process "https://one.dash.cloudflare.com/"
+Start-Process 'https://one.dash.cloudflare.com/'
 
-Write-Host "`nSetup complete!" -ForegroundColor White
+Write-Host 'Setup complete!' -ForegroundColor White
