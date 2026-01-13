@@ -165,30 +165,25 @@ if (-not $tunnelExists) {
 
 # Extract domain for DNS routing (remove https://)
 $domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
-Write-Host "Routing domain $domainOnly to tunnel..." -ForegroundColor Yellow
-# Force the route (will fail if DNS record exists, which is handled by instructions)
-cloudflared tunnel route dns -f mp3-tunnel $domainOnly
+Write-Host "Routing# Cleanup existing processes to free up ports
+Write-Host 'Cleaning up old processes...' -ForegroundColor Cyan
+if (Get-Command pm2 -ErrorAction SilentlyContinue) {
+    pm2 delete all 2>$null | Out-Null
+    pm2 kill 2>$null | Out-Null
+}
+Stop-Process -Name "node" -ErrorAction SilentlyContinue
 
-# Start Tunnel with PM2 (LEGACY MODE)
-Write-Host 'Starting Cloudflare Tunnel...' -ForegroundColor Cyan
-pm2 stop cf-tunnel 2>$null | Out-Null
-pm2 delete cf-tunnel 2>$null | Out-Null
-
-# Detect absolute path
-$cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
-if (-not $cfPath) { $cfPath = 'cloudflared' }
-
-# CRITICAL FIX: The '--' separator is required before '--url' so PM2 doesn't try to parse it
-# Syntax: pm2 start <executable> --name <name> -- <arguments for executable>
-pm2 start $cfPath --name cf-tunnel -- tunnel --url http://localhost:8000
-pm2 save
+# Run npm install
+Write-Host 'Running npm install...' -ForegroundColor Cyan
+npm install
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
-Write-Host 'PRODUCTION READY!' -ForegroundColor Green
-Write-Host '1. Your app is running in the background via PM2.'
-Write-Host '2. IMPORTANT: If routing failed, delete your old A/CNAME records for'
-Write-Host "   $domainOnly in the Cloudflare DNS dashboard first!"
-Write-Host "3. Your domain $domainOnly is being linked now."
+Write-Host 'SETUP COMPLETE!' -ForegroundColor Green
+Write-Host '1. Run this command to start your server:'
+Write-Host '   npm start' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '2. To put your site online, open a NEW terminal and run:'
+Write-Host '   cloudflared tunnel --url http://localhost:8000' -ForegroundColor Yellow
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
