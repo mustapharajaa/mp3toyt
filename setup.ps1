@@ -145,11 +145,13 @@ pm2 save
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 Write-Host 'PRODUCTION READY!' -ForegroundColor Green
 Write-Host '1. Your app is running in the background via PM2.'
-Write-Host '2. LOGIN REQUIRED: A unique URL will appear below.'
-Write-Host 'COPY and OPEN this URL in your local browser to link your domain.'
-Write-Host '-----------------------------------' -ForegroundColor Cyan
-
-cloudflared tunnel login
+$certPath = Join-Path $HOME ".cloudflared\cert.pem"
+if (-not (Test-Path $certPath)) {
+    Write-Host "No Cloudflare certificate found. Starting login..." -ForegroundColor Yellow
+    cloudflared tunnel login
+} else {
+    Write-Host "Cloudflare certificate already exists. Skipping login." -ForegroundColor Green
+}
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
 # Improved check for existing tunnel
@@ -169,9 +171,10 @@ cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 
 # Start Tunnel with PM2
 Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
+pm2 stop cf-tunnel 2>$null | Out-Null
 pm2 delete cf-tunnel 2>$null | Out-Null
-# Correct syntax: put --url immediately after 'tunnel' to ensure it is recognized as a global option for the run
-pm2 start cloudflared --name cf-tunnel -- tunnel --url http://localhost:8000 run mp3-tunnel
+# Using a quoted string is often more reliable for PM2 on Windows for global commands
+pm2 start "cloudflared tunnel run --url http://localhost:8000 mp3-tunnel" --name cf-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
