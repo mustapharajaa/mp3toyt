@@ -167,16 +167,18 @@ cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 # Start Tunnel with PM2
 Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
 pm2 delete cf-tunnel 2>$null | Out-Null
-pm2 start "cloudflared tunnel --url http://localhost:8000 run mp3-tunnel" --name cf-tunnel
+# Use more robust PM2 command format for Windows
+pm2 start cloudflared --name cf-tunnel -- tunnel --url http://localhost:8000 run mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 Write-Host 'PRODUCTION READY!' -ForegroundColor Green
 Write-Host '1. Your app is running in the background via PM2.'
-Write-Host "2. Your domain $domainOnly is now linked to this server!"
+Write-Host '2. IMPORTANT: If routing failed, delete your old A/CNAME records for'
+Write-Host "   $domainOnly in the Cloudflare DNS dashboard first!"
+Write-Host "3. Your domain $domainOnly is being linked now."
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
 Start-Process 'https://one.dash.cloudflare.com/'
-
 Write-Host 'Setup complete!' -ForegroundColor White
