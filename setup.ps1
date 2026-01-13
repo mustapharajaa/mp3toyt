@@ -170,8 +170,8 @@ cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 # Start Tunnel with PM2
 Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
 pm2 delete cf-tunnel 2>$null | Out-Null
-# Correct syntax: put --url after the 'run' command
-pm2 start cloudflared --name cf-tunnel -- tunnel run --url http://localhost:8000 mp3-tunnel
+# Correct syntax: put --url immediately after 'tunnel' to ensure it is recognized as a global option for the run
+pm2 start cloudflared --name cf-tunnel -- tunnel --url http://localhost:8000 run mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
