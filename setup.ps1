@@ -105,8 +105,15 @@ Update-EnvVar 'BASE_URL' $currentBaseUrl
 Write-Host "BASE_URL updated to: $currentBaseUrl" -ForegroundColor Green
 
 Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
-$tokensFile = Join-Path $PSScriptRoot "tokens.json"
-if (-not (Test-Path $tokensFile)) { "[]" | Out-File -FilePath $tokensFile -Encoding utf8 }
+Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
+$backendDir = Join-Path $PSScriptRoot "backend"
+if (-not (Test-Path $backendDir)) { New-Item -ItemType Directory -Path $backendDir | Out-Null }
+$tokensFile = Join-Path $backendDir "tokens.json"
+
+# Use .NET IO to write UTF8 without BOM, which Node.js prefers
+if (-not (Test-Path $tokensFile)) { 
+    [System.IO.File]::WriteAllText($tokensFile, "[]") 
+}
 
 $channelsFile = Join-Path $PSScriptRoot "channels.json"
 if (-not (Test-Path $channelsFile)) { '{"channels": []}' | Out-File -FilePath $channelsFile -Encoding utf8 }
