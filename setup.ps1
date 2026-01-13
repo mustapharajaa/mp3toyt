@@ -163,15 +163,13 @@ if (-not $tunnelExists) {
     Write-Host 'Tunnel mp3-tunnel already exists, skipping creation.' -ForegroundColor Green
 }
 
-# Extract domain for DNS routing (remove https://)
-$domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
-Write-Host "Routing# Cleanup existing processes to free up ports
+# Cleanup existing processes to free up ports
 Write-Host 'Cleaning up old processes...' -ForegroundColor Cyan
 if (Get-Command pm2 -ErrorAction SilentlyContinue) {
     pm2 delete all 2>$null | Out-Null
     pm2 kill 2>$null | Out-Null
 }
-Stop-Process -Name "node" -ErrorAction SilentlyContinue
+Stop-Process -Name 'node' -ErrorAction SilentlyContinue
 
 # Run npm install
 Write-Host 'Running npm install...' -ForegroundColor Cyan
