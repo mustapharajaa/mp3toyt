@@ -1106,6 +1106,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 }
 
+                const managementBtn = document.getElementById('management-btn');
+                const upgradeBtn = document.getElementById('upgrade-btn');
+
+                if (managementBtn) managementBtn.style.display = (data.user.username === 'erraja') ? 'flex' : 'none';
+                if (upgradeBtn) upgradeBtn.style.display = (data.user.plan !== 'pro') ? 'flex' : 'none';
+
                 // Show Manage Users if Admin
                 if (data.user.role === 'admin' && manageUsersLink) {
                     manageUsersLink.style.display = 'block';

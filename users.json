@@ -8,115 +8,11 @@
     "createdAt": "2026-01-13T00:44:30.506Z"
   },
   {
-    "id": "e09e0ced-3181-4043-a3d4-92049a6c7dc9",
-    "username": "j",
-    "password": "$2b$10$iV4OIXNxKVvUbQGjMgYzUuTbwQeigMDO/bTPxjF3HDZK4NHwbKp8y",
+    "id": "ecf98c85-2190-4223-8b10-db1ec3d31ab1",
+    "username": "kk",
+    "password": "$2b$10$meHy3NPussXbIHFLhLUlwO7UB0EB8ayl/s4U4CfPByPz6SPxq.3fO",
     "role": "user",
     "plan": "free",
-    "createdAt": "2026-01-13T01:09:43.355Z"
-  },
-  {
-    "id": "b9565f8d-5134-4a41-a346-b7351e14a218",
-    "username": "jk",
-    "password": "$2b$10$4C.2x580YXS3GCD4DtneuuiETXKCve.G13PrOdsZE6YXL17PtFw3O",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T01:24:42.942Z"
-  },
-  {
-    "id": "6c4de1e6-31b8-4cf4-b748-1554875ae5a3",
-    "username": "kk;;",
-    "password": "$2b$10$98d17IC/Exav1AIF/eN6XOnGrr3V26dU6otFZm.GJ4QYms7ysVueG",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T01:37:13.620Z"
-  },
-  {
-    "id": "7480996b-4477-4c94-b2ca-7b1052e31ffe",
-    "username": "jnn",
-    "password": "$2b$10$stDY8tPPaFY276sxJWPKkuVYaQi2QcyHcYwCMMSo5901bMju/PoaK",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T01:47:49.882Z"
-  },
-  {
-    "id": "92195bfe-fabe-491f-ae29-0b6e7df78e09",
-    "username": "k",
-    "password": "$2b$10$XH4rQrHUcj9IoL/XM8BPi.4/m4ijoNfhFbS3LRC1.OXgQWe2XeNBS",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T01:51:38.403Z"
-  },
-  {
-    "id": "269c7bf9-3828-4e9e-821c-b56eeac33b7c",
-    "username": "kkmm",
-    "password": "$2b$10$/zVZnJk4LkTT7TGyhookh.CXRrPdt7w8nHOnY3FgEfaYhe4XBHJoO",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T01:57:11.545Z"
-  },
-  {
-    "id": "ae4a00cb-cd61-48ae-9eb0-c204e0496a92",
-    "username": "klklklk",
-    "password": "$2b$10$VHMNVMejBHYSP/tjd2xUpOSbQ4M1wFwuAmJ814CvAl.VYmH.FBfHe",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:02:07.352Z"
-  },
-  {
-    "id": "88cfac02-9005-4621-9c17-d11cc070a307",
-    "username": "kll",
-    "password": "$2b$10$jAVxWy59O0lbE.A3UlBKF.btKaPlOfVNeN6ahqmNUK2eqVvTmDybC",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:06:28.771Z"
-  },
-  {
-    "id": "d2ea7463-ad1b-4df9-b42c-c6ac5af09555",
-    "username": "mkm",
-    "password": "$2b$10$aNH.exPrcdWecp9/MmJqpu8Tj5Pz5vx2PJwNIKhtB27u.zZvpj0/u",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:11:12.180Z"
-  },
-  {
-    "id": "4f7228af-9e9e-47f0-9e34-a00e85c46580",
-    "username": "lmk",
-    "password": "$2b$10$zIp9mD0LLNyIGf.MzZH.re4nwsjWkWRcURYDaJuZznlhpdhNizb1a",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:18:11.134Z"
-  },
-  {
-    "id": "08673500-788c-4b62-a0e5-1d90933be0f4",
-    "username": "lloo",
-    "password": "$2b$10$q72ud49uGgXWhUJSEmqWAOWjh0kP1qwtUzfMr0mziN6waba7rznAS",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:22:07.958Z"
-  },
-  {
-    "id": "7ab7b975-f433-4e2e-a326-516afbe0185a",
-    "username": "lkl",
-    "password": "$2b$10$gG2QAsYl.8vsxiCdrAZFyuoUtJ5WNcdTUFrpJv/y/PPN2DYen1Ggi",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:29:51.894Z"
-  },
-  {
-    "id": "20968198-f5ba-4015-a611-321f7d01eec3",
-    "username": "ppo",
-    "password": "$2b$10$XTLwIumx2k9T7Onj.1Jg9.N1UnoFPhure2O7Ib2Si5ZLrCLRJI7Sy",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:33:05.185Z"
-  },
-  {
-    "id": "bc371d4d-d680-4a3b-b2cc-b95d00729dca",
-    "username": "kkm",
-    "password": "$2b$10$ajCAyUpIIitaWnZYPZZjPOj44qehVYlHvcOmiMGiLm84yLJsu5lSW",
-    "role": "user",
-    "plan": "free",
-    "createdAt": "2026-01-13T02:50:23.627Z"
+    "createdAt": "2026-01-13T03:13:31.147Z"
   }
 ]
