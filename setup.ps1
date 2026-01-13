@@ -24,11 +24,16 @@ choco install yt-dlp -y
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "Installing Node.js (LTS)..." -ForegroundColor Yellow
     choco install nodejs-lts -y
+    # Refresh Path immediately after Node install
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 } else {
     Write-Host "Node.js is already installed." -ForegroundColor Green
 }
 
 # Install PM2 (Process Manager)
+# Force path refresh for current session to ensure npm is found
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
 if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
     Write-Host "Installing PM2 (Process Manager)..." -ForegroundColor Yellow
     npm install pm2 -g
