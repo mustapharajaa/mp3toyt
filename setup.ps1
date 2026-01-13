@@ -116,16 +116,24 @@ if (-not (Test-Path $tokensFile)) {
 }
 
 $channelsFile = Join-Path $PSScriptRoot "channels.json"
-if (-not (Test-Path $channelsFile)) { '{"channels": []}' | Out-File -FilePath $channelsFile -Encoding utf8 }
+if (-not (Test-Path $channelsFile)) { 
+    [System.IO.File]::WriteAllText($channelsFile, '{"channels": []}')
+}
 
 $facebookTokensFile = Join-Path $PSScriptRoot "facebook_tokens.json"
-if (-not (Test-Path $facebookTokensFile)) { "[]" | Out-File -FilePath $facebookTokensFile -Encoding utf8 }
+if (-not (Test-Path $facebookTokensFile)) { 
+    [System.IO.File]::WriteAllText($facebookTokensFile, "[]")
+}
 
 $facebookCredentialsFile = Join-Path $PSScriptRoot "facebook_credentials.json"
-if (-not (Test-Path $facebookCredentialsFile)) { "{}" | Set-Content $facebookCredentialsFile }
+if (-not (Test-Path $facebookCredentialsFile)) { 
+    [System.IO.File]::WriteAllText($facebookCredentialsFile, "{}")
+}
 
 $credentialsFile = Join-Path $PSScriptRoot "credentials.json"
-if (-not (Test-Path $credentialsFile)) { "{}" | Set-Content $credentialsFile }
+if (-not (Test-Path $credentialsFile)) { 
+    [System.IO.File]::WriteAllText($credentialsFile, "{}")
+}
 
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 Write-Host "Verifying installations:"
