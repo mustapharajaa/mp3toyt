@@ -174,9 +174,16 @@ Write-Host 'Starting Cloudflare Tunnel...' -ForegroundColor Cyan
 pm2 stop cf-tunnel 2>$null | Out-Null
 pm2 delete cf-tunnel 2>$null | Out-Null
 
-# Using the classic global --url command which is simpler and more reliable for quick setups
-# We pass it as a single quoted string which PM2 handles better for this specific command style
-pm2 start "cloudflared tunnel --url http://localhost:8000" --name cf-tunnel
+# Detect absolute path - CRITICAL for Windows PM2 to find the executable
+$cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
+if (-not $cfPath) { $cfPath = 'cloudflared' }
+
+# Correct PM2 Syntax for Binary Execution:
+# 1. First arg: The absolute path to the .exe (NOT a command string)
+# 2. --name: Name of the process
+# 3. -- : Separator telling PM2 "everything after this is for the program"
+# 4. Args: The actual flags for cloudflared
+pm2 start $cfPath --name cf-tunnel -- tunnel --url http://localhost:8000
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
