@@ -492,6 +492,10 @@
             style="background: none; color: #4b5563; border: none; padding: 4px 6px; cursor: pointer; font-weight: 600; margin-right: 0; display: flex; align-items: center; gap: 3px;">
             <i class="fas fa-crown" style="color: #f59e0b;"></i> Upgrade
         </button>
+        <button type="button" id="automation-btn" class="connect-btn"
+            style="background: none; color: #4b5563; border: none; padding: 4px 6px; cursor: pointer; font-weight: 600; margin-right: 0; display: flex; align-items: center; gap: 3px;">
+            <i class="fas fa-robot" style="color: #3b82f6;"></i> Automation
+        </button>
         <div class="dropdown">
             <button type="button" id="management-btn" class="connect-btn"
                 style="background: none; color: #4b5563; padding: 4px 6px; border:none; cursor: pointer; display: flex; align-items: center; gap: 3px; margin-right: 0;">
@@ -910,6 +914,36 @@
         </div>
     </div>
 
+
+    <!-- Automation Modal -->
+    <div id="automationModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; color: #333;">
+            <span class="close-modal" id="close-automation-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #0f172a;"><i class="fas fa-robot"></i> Automation</h2>
+            <p style="color: #64748b; font-size: 0.9rem;">Paste multiple YouTube audio links (one per line) and a
+                thumbnail image URL.</p>
+
+            <div class="form-group">
+                <label>Audio Links (One per line)</label>
+                <textarea id="auto-audio-links"
+                    placeholder="https://youtube.com/watch?v=...&#10;https://youtube.com/watch?v=..."
+                    style="min-height: 120px;"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Thumbnail Image URL (Optional)</label>
+                <input type="text" id="auto-image-link" placeholder="https://example.com/image.jpg">
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-auto-btn"
+                    style="flex: 1; padding: 12px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
+                <button type="button" id="start-auto-btn"
+                    style="flex: 1; padding: 12px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Process
+                    Links</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/scripts/mp3toyt.js?v=187"></script>
     <!-- Facebook Credentials Modal -->

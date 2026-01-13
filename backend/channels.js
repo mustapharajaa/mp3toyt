@@ -28,30 +28,16 @@ async function readChannels() {
 // Function to get all channels for a specific user
 async function getChannelsForUser(username) {
     const channels = await readChannels();
+    console.log(`[Channels] Total channels in file: ${channels.length}`);
     const userChannels = channels.filter(c => c.username === username);
+    console.log(`[Channels] Found ${userChannels.length} channels for ${username}`);
 
-    const channelDetails = await Promise.all(userChannels.map(async (channel) => {
-        try {
-            const token = await getTokenForChannel(channel.channelId);
-            if (!token) return null;
-
-            const youtube = google.youtube('v3');
-            const auth = new google.auth.OAuth2();
-            auth.setCredentials(token);
-
-            const channelInfo = await getAuthenticatedChannelInfo(auth);
-            return {
-                id: channel.channelId,
-                title: channelInfo.title,
-                thumbnail: channelInfo.thumbnail
-            };
-        } catch (error) {
-            console.error(`Failed to get details for channel ${channel.id}:`, error);
-            return null;
-        }
+    // Return the channel data directly from the file to avoid unnecessary API calls
+    return userChannels.map(channel => ({
+        channelId: channel.channelId,
+        channelTitle: channel.channelTitle,
+        thumbnail: channel.thumbnail
     }));
-
-    return channelDetails.filter(c => c !== null);
 }
 
 async function saveChannel(channelData, username) {
@@ -128,4 +114,17 @@ async function addChannel(newChannelData) {
     await fs.writeFile(CHANNELS_FILE, JSON.stringify({ channels }, null, 2));
 }
 
-export { getChannelsForUser, saveChannel, saveMp3toytChannel, addChannel };
+async function deleteChannel(channelId) {
+    const channels = await readChannels();
+    const filteredChannels = channels.filter(c => c.channelId !== channelId);
+
+    if (channels.length === filteredChannels.length) {
+        console.warn(`[CHANNELS] Attempted to delete channel ${channelId}, but it was not found.`);
+        return;
+    }
+
+    console.log(`[CHANNELS] Deleted channel with ID: ${channelId}`);
+    await fs.writeFile(CHANNELS_FILE, JSON.stringify({ channels: filteredChannels }, null, 2));
+}
+
+export { getChannelsForUser, saveChannel, saveMp3toytChannel, addChannel, deleteChannel };

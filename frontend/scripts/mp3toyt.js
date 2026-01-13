@@ -1095,6 +1095,63 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Auth State Check ---
+    // --- Automation Modal Logic ---
+    const automationModal = document.getElementById('automationModal');
+    const automationBtn = document.getElementById('automation-btn');
+    const closeAutoModal = document.getElementById('close-automation-modal');
+    const cancelAutoBtn = document.getElementById('cancel-auto-btn');
+    const startAutoBtn = document.getElementById('start-auto-btn');
+    const autoAudioLinks = document.getElementById('auto-audio-links');
+    const autoImageLink = document.getElementById('auto-image-link');
+
+    if (automationBtn) {
+        automationBtn.addEventListener('click', () => {
+            automationModal.style.display = 'flex';
+        });
+    }
+
+    const closeAuto = () => { automationModal.style.display = 'none'; };
+    if (closeAutoModal) closeAutoModal.addEventListener('click', closeAuto);
+    if (cancelAutoBtn) cancelAutoBtn.addEventListener('click', closeAuto);
+
+    if (startAutoBtn) {
+        startAutoBtn.addEventListener('click', async () => {
+            const links = autoAudioLinks.value.split('\n').map(l => l.trim()).filter(l => l);
+            const thumbUrl = autoImageLink.value.trim();
+
+            if (links.length === 0) {
+                showNotification('Please enter at least one audio link.', 'error');
+                return;
+            }
+
+            try {
+                startAutoBtn.disabled = true;
+                startAutoBtn.textContent = 'Queueing...';
+
+                const res = await fetch('/start-automation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ links, thumbUrl })
+                });
+
+                const result = await res.json();
+                if (result.success) {
+                    showNotification(`Success! Video queued for ${links.length} song(s).`, 'success');
+                    autoAudioLinks.value = ''; // Clear links for next batch
+                    // Keep the modal open as requested
+                } else {
+                    showNotification(result.error || 'Failed to start automation', 'error');
+                }
+            } catch (err) {
+                console.error('Automation error:', err);
+                showNotification('Network error starting automation', 'error');
+            } finally {
+                startAutoBtn.disabled = false;
+                startAutoBtn.textContent = 'Process Links';
+            }
+        });
+    }
+
     async function checkAuth() {
         try {
             const res = await fetch('/api/auth/me');

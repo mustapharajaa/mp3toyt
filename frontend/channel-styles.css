@@ -2,16 +2,43 @@
 .channel-grid {
     display: flex;
     gap: 15px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     margin: 15px 0;
-    justify-content: center;
-    /* Center items */
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-top: 10px;
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    max-width: 285px;
+    /* (60px * 4) + (15px * 3) = 285px */
+    width: 100%;
+}
+
+.channel-grid::-webkit-scrollbar {
+    height: 6px;
+}
+
+.channel-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.channel-grid::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
+
+body.dark-mode .channel-grid::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .channel-item {
     cursor: pointer;
     transition: transform 0.2s;
     text-align: center;
+    flex-shrink: 0;
+    width: 60px;
 }
 
 .channel-item:hover {
@@ -19,15 +46,28 @@
 }
 
 .channel-avatar {
-    width: 25px;
-    height: 25px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid transparent;
-    /* Default border */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     display: block;
-    /* Eliminate flex gaps */
+    margin: 0 auto 5px;
+}
+
+.channel-title {
+    font-size: 0.75rem;
+    color: #4b5563;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 2px;
+}
+
+body.dark-mode .channel-title {
+    color: #94a3b8;
 }
 
 /* Selected State - Border on Avatar */

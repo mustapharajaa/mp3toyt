@@ -1664,3 +1664,22 @@ export async function uploadVideo(channelId, videoPath, videoMetadata, onProgres
         }
     }
 }
+
+/**
+ * Deletes the token for a specific channel ID from tokens.json
+ * @param {string} channelId 
+ */
+export async function deleteToken(channelId) {
+    try {
+        if (!fs.existsSync(TOKEN_PATH)) return;
+        const tokens = await fs.readJson(TOKEN_PATH);
+
+        if (tokens[channelId]) {
+            delete tokens[channelId];
+            await fs.writeJson(TOKEN_PATH, tokens, { spaces: 4 });
+            console.log(`[YouTubeAPI] Successfully deleted token for channel: ${channelId}`);
+        }
+    } catch (error) {
+        console.error(`[YouTubeAPI] Error deleting token for channel ${channelId}:`, error.message);
+    }
+}

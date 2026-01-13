@@ -13,6 +13,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// Trust Proxy for Cloudflare/SSL
+app.set('trust proxy', 1);
+
 // Middleware for parsing JSON and urlencoded data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

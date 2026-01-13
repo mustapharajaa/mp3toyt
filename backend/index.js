@@ -1,4 +1,4 @@
-import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH } from './config.js'; // Load variables
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH, AUTOMATION_STATS_PATH } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,7 +9,7 @@ import fs from 'fs-extra';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
-import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode } from './youtube-api.js';
+import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
 import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
@@ -48,14 +48,43 @@ router.use(express.json());
 const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
 const LOGOS_DIR = path.join(__dirname, '../logos');
+const FALLBACK_THUMBNAILS_DIR = path.join(__dirname, '../temp/thumbnails');
 const upload = multer();
 
 // Ensure Directories Exist
 fs.ensureDirSync(UPLOADS_BASE_DIR);
 fs.ensureDirSync(TEMP_BASE_DIR);
 fs.ensureDirSync(LOGOS_DIR);
+fs.ensureDirSync(FALLBACK_THUMBNAILS_DIR);
+
+/**
+ * Picks a random image from the fallback thumbnails directory.
+ */
+async function getRandomFallbackThumbnail() {
+    try {
+        if (!await fs.pathExists(FALLBACK_THUMBNAILS_DIR)) return null;
+        const files = await fs.readdir(FALLBACK_THUMBNAILS_DIR);
+        const images = files.filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+        if (images.length === 0) return null;
+        const randomImage = images[Math.floor(Math.random() * images.length)];
+        return path.join(FALLBACK_THUMBNAILS_DIR, randomImage);
+    } catch (err) {
+        console.error('[Automation] Error picking fallback thumbnail:', err.message);
+        return null;
+    }
+}
 
 // --- API Endpoints ---
+
+// --- Helper to construct full URLs (supports BASE_URL env) ---
+function getRedirectUri(req, path) {
+    if (process.env.BASE_URL) {
+        // Ensure path starts with /
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${process.env.BASE_URL.replace(/\/$/, '')}${cleanPath}`;
+    }
+    return `${req.protocol}://${req.get('host')}${path.startsWith('/') ? path : `/${path}`}`;
+}
 
 router.get('/download-audio', async (req, res) => {
     const { url, sessionId } = req.query;
@@ -71,27 +100,9 @@ router.get('/download-audio', async (req, res) => {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
-        const finalAudioPath = path.join(sessionDir, 'audio.opus');
 
-        const args = [
-            '--retries', '4',
-            '--socket-timeout', '23',
-            '--no-playlist',
-            '--concurrent-fragments', '8',
-            '--no-part', // Do not use .part files
-            '--ppa', 'ffmpeg_i:-ss 0', // Force a sanity check on the file with ffmpeg
-            '--ffmpeg-location', FFMPEG_PATH,
-            '-x',
-            '--audio-format', 'best',
-            '-o', `${sessionDir}/%(title)s.%(ext)s`,
-        ];
-        if (YOUTUBE_COOKIES_PATH && await fs.pathExists(YOUTUBE_COOKIES_PATH)) {
-            args.push('--cookies', YOUTUBE_COOKIES_PATH);
-        }
-
-        args.push(url);
-
-        const ytDlpProcess = spawn(YT_DLP_PATH, args);
+        // Use a generic name for discovery later, robust args handled in helper
+        const downloadPath = path.join(sessionDir, 'dl_audio.%(ext)s');
 
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
@@ -102,40 +113,12 @@ router.get('/download-audio', async (req, res) => {
             res.write(`data: ${JSON.stringify({ message })}\n\n`);
         };
 
-        ytDlpProcess.stdout.on('data', (data) => {
-            const output = data.toString();
-            console.log(`[yt-dlp] ${output}`);
-            const progressMatch = output.match(/\b(\d{1,3}(\.\d+)?)%/);
-            if (progressMatch) {
-                const percent = Math.floor(parseFloat(progressMatch[1]));
-                sendProgress(`Downloading... ${percent}%`);
-            }
-        });
+        const onProgress = (percent) => {
+            sendProgress(`Downloading... ${percent}%`);
+        };
 
-        let errorOutput = '';
-        let isCookieError = false;
-
-        ytDlpProcess.stderr.on('data', (data) => {
-            const errorData = data.toString();
-            errorOutput += errorData;
-            console.log(`[yt-dlp Error]: ${errorData}`);
-            if (errorData.includes('cookies are no longer valid') || errorData.includes('Sign in to confirm')) {
-                isCookieError = true;
-            }
-        });
-
-        ytDlpProcess.on('error', (err) => {
-            console.error('[yt-dlp Spawn Error]', err);
-            if (!res.headersSent) {
-                res.status(500).json({ success: false, message: 'Failed to start the download process.' });
-            } else {
-                res.write(`data: ${JSON.stringify({ success: false, error: 'Failed to start the download process.' })}\n\n`);
-                res.end();
-            }
-        });
-
-        ytDlpProcess.on('close', async (code) => {
-            if (code === 0) {
+        downloadAudio(url, downloadPath, 'best', onProgress)
+            .then(async () => {
                 try {
                     const files = await fs.readdir(sessionDir);
                     const downloadedFile = files.find(f => f.endsWith('.opus') || f.endsWith('.m4a') || f.endsWith('.webm') || f.endsWith('.mp3'));
@@ -189,15 +172,16 @@ router.get('/download-audio', async (req, res) => {
                     res.write(`data: ${JSON.stringify({ success: false, message: 'Server error after audio download.' })}\n\n`);
                     res.end();
                 }
-            } else {
+            })
+            .catch((err) => {
+                const isCookieError = err.message.includes('cookies are no longer valid') || err.message.includes('Sign in to confirm');
                 if (isCookieError) {
                     res.write(`data: ${JSON.stringify({ success: false, error: 'YouTube cookies have expired. Please refresh them.' })}\n\n`);
                 } else {
                     res.write(`data: ${JSON.stringify({ success: false, error: 'Failed to download audio.' })}\n\n`);
                 }
                 res.end();
-            }
-        });
+            });
     } catch (error) {
         console.error('[Server Error] Failed to initiate audio download:', error);
         if (!res.headersSent) {
@@ -208,6 +192,160 @@ router.get('/download-audio', async (req, res) => {
         }
     }
 });
+
+/**
+ * Fetches title and description for a YouTube video using yt-dlp
+ */
+async function getYoutubeMetadata(link) {
+    const args = [
+        '--no-playlist',
+        '--print', '%(title)s',
+        '--print', '%(description)s',
+        link
+    ];
+
+    if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
+        args.push('--cookies', YOUTUBE_COOKIES_PATH);
+    }
+
+    return new Promise((resolve) => {
+        const proc = spawn(YT_DLP_PATH, args);
+        proc.stdout.setEncoding('utf8'); // Force UTF-8 encoding
+
+        let output = '';
+        proc.stdout.on('data', (data) => output += data);
+
+        proc.on('close', (code) => {
+            if (code === 0) {
+                const lines = output.trim().split('\n');
+                const title = lines[0] || 'Music Video';
+                const description = lines.slice(1).join('\n') || ''; // Default to empty string
+
+                console.log(`[Metadata] Extracted Title: ${title}`);
+                console.log(`[Metadata] Extracted Description Length: ${description.length}`);
+
+                resolve({
+                    title: title,
+                    description: description
+                });
+            } else {
+                console.warn(`[Metadata] yt-dlp failed with code ${code}. Using default title.`);
+                resolve({ title: 'Music Video', description: '' });
+            }
+        });
+    });
+}
+
+// Helper function for robust image downloading (Main App & Automation)
+async function downloadImage(url, imagePath, username, sessionId) {
+
+    // Detect YouTube URL and extract thumbnail
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        console.log(`[Thumbnail] Detecting YouTube URL: ${url}`);
+
+        // Fast Path: Extract ID using regex
+        const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+        const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
+        if (videoId) {
+            console.log(`[Thumbnail] Fast Path Success. Video ID: ${videoId}`);
+            targetUrl = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+        } else {
+            console.log(`[Thumbnail] Fast Path Failed, falling back to yt-dlp...`);
+            targetUrl = await new Promise((resolve, reject) => {
+                const args = ['--get-thumbnail', url];
+                if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
+                    args.push('--cookies', YOUTUBE_COOKIES_PATH);
+                }
+                const proc = spawn(YT_DLP_PATH, args);
+                let out = '';
+                proc.stdout.on('data', d => out += d.toString());
+                proc.on('close', code => {
+                    if (code === 0 && out.trim()) resolve(out.trim());
+                    else reject(new Error('Failed to get thumbnail URL from YouTube'));
+                });
+            });
+        }
+        console.log(`[Thumbnail] targetUrl set to: ${targetUrl}`);
+    }
+
+    let response;
+    try {
+        response = await axios({ url: targetUrl, responseType: 'stream' });
+    } catch (err) {
+        // Fallback for maxresdefault (sometimes it doesn't exist)
+        if (targetUrl.includes('maxresdefault.jpg')) {
+            console.log(`[Thumbnail] maxresdefault failed, trying hqdefault...`);
+            const fallbackUrl = targetUrl.replace('maxresdefault.jpg', 'hqdefault.jpg');
+            response = await axios({ url: fallbackUrl, responseType: 'stream' });
+            targetUrl = fallbackUrl;
+        } else {
+            throw err;
+        }
+    }
+
+    const writer = fs.createWriteStream(imagePath);
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+    });
+}
+
+// Helper function for robust audio downloading (Main App & Automation)
+async function downloadAudio(link, audioPath, format = 'best', onProgress = null) {
+    const args = [
+        '--retries', '4',
+        '--socket-timeout', '23',
+        '--no-playlist',
+        '--concurrent-fragments', '8',
+        '--no-part', // Do not use .part files
+        '--ppa', 'ffmpeg_i:-ss 0', // Force a sanity check on the file with ffmpeg
+        '--ffmpeg-location', FFMPEG_PATH,
+        '-f', 'ba[ext=webm]/ba', // Prefer native webm (opus) to avoid server conversion
+        '-x',
+        '--audio-format', format,
+        '--output', audioPath,
+        link
+    ];
+
+    if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
+        args.push('--cookies', YOUTUBE_COOKIES_PATH);
+    }
+
+    return new Promise((resolve, reject) => {
+        const dl = spawn(YT_DLP_PATH, args);
+
+        if (onProgress) {
+            dl.stdout.on('data', (data) => {
+                const output = data.toString();
+                const progressMatch = output.match(/\b(\d{1,3}(\.\d+)?)%/);
+                if (progressMatch) {
+                    onProgress(Math.floor(parseFloat(progressMatch[1])));
+                }
+            });
+        }
+
+        let errorOutput = '';
+        dl.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+
+        dl.on('close', (code) => {
+            if (code === 0) resolve();
+            else {
+                console.error(`[Audio Download Error] Code ${code}: ${errorOutput}`);
+                reject(new Error(`yt-dlp failed (Code ${code}): ${errorOutput}`));
+            }
+        });
+
+        dl.on('error', (err) => {
+            console.error('[Audio Download Spawn Error]', err);
+            reject(err);
+        });
+    });
+}
 
 router.post('/download-image', async (req, res) => {
     const { url, sessionId } = req.body;
@@ -221,59 +359,7 @@ router.post('/download-image', async (req, res) => {
         await fs.ensureDir(sessionDir);
         const imagePath = path.join(sessionDir, 'image.jpg');
 
-        let targetUrl = url;
-
-        // Detect YouTube URL and extract thumbnail (v184)
-        if (url.includes('youtube.com') || url.includes('youtu.be')) {
-            console.log(`[Thumbnail] Detecting YouTube URL: ${url}`);
-
-            // Fast Path: Extract ID using regex
-            const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
-            const videoId = videoIdMatch ? videoIdMatch[1] : null;
-
-            if (videoId) {
-                console.log(`[Thumbnail] Fast Path Success. Video ID: ${videoId}`);
-                targetUrl = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
-            } else {
-                console.log(`[Thumbnail] Fast Path Failed, falling back to yt-dlp...`);
-                targetUrl = await new Promise((resolve, reject) => {
-                    const args = ['--get-thumbnail', url];
-                    if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
-                        args.push('--cookies', YOUTUBE_COOKIES_PATH);
-                    }
-                    const proc = spawn(YT_DLP_PATH, args);
-                    let out = '';
-                    proc.stdout.on('data', d => out += d.toString());
-                    proc.on('close', code => {
-                        if (code === 0 && out.trim()) resolve(out.trim());
-                        else reject(new Error('Failed to get thumbnail URL from YouTube'));
-                    });
-                });
-            }
-            console.log(`[Thumbnail] targetUrl set to: ${targetUrl}`);
-        }
-
-        let response;
-        try {
-            response = await axios({ url: targetUrl, responseType: 'stream' });
-        } catch (err) {
-            // Fallback for maxresdefault (sometimes it doesn't exist)
-            if (targetUrl.includes('maxresdefault.jpg')) {
-                console.log(`[Thumbnail] maxresdefault failed, trying hqdefault...`);
-                const fallbackUrl = targetUrl.replace('maxresdefault.jpg', 'hqdefault.jpg');
-                response = await axios({ url: fallbackUrl, responseType: 'stream' });
-                targetUrl = fallbackUrl;
-            } else {
-                throw err;
-            }
-        }
-        const writer = fs.createWriteStream(imagePath);
-        response.data.pipe(writer);
-
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
-        });
+        await downloadImage(url, imagePath, username, sessionId);
 
         res.json({
             success: true,
@@ -893,9 +979,7 @@ router.get('/session-status', async (req, res) => {
 
         res.json({
             success: true,
-            audio: audioFiles.length > 0,
             audioCount: audioFiles.length,
-            totalDuration: totalDurationFormatted,
             totalDuration: totalDurationFormatted,
             image: imageExists,
             imageUrl: imageExists ? `/temp/${username}/${sessionId}/${foundImageFilename}` : null
@@ -938,18 +1022,219 @@ router.post('/create-video', upload.none(), async (req, res) => {
         videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform: platform || 'youtube', overlay, plan });
 
         // Start processing the queue, but don't block the response.
-        // Added a try-catch in case the initial call to processVideoQueue has a synchronous error.
         try {
             processVideoQueue();
         } catch (processError) {
             console.error(`[Queue] Failed to start queue processing for session ${sessionId}:`, processError);
-            // Even if starting fails, the job is queued. The next successful job will trigger it.
         }
 
         res.json({ success: true, message: 'Your video has been added to the queue.', sessionId });
     } catch (error) {
         console.error(`[API Error] /create-video failed for session ${sessionId}:`, error);
         res.status(500).json({ success: false, error: 'Failed to add video to the queue. Check server logs for details.' });
+    }
+});
+
+router.post('/start-automation', async (req, res) => {
+    const { links, thumbUrl } = req.body;
+    const username = req.session && req.session.username ? req.session.username : 'guest';
+    const userId = req.session && req.session.userId ? req.session.userId : null;
+
+    if (!links || !Array.isArray(links) || links.length === 0) {
+        return res.status(400).json({ success: false, error: 'No links provided.' });
+    }
+
+    try {
+        // 1. Get all available channels (YouTube only)
+        let allChannels = [];
+        console.log(`[Automation] Request from ${username}. Links count: ${links.length}`);
+
+        if (username && username !== 'guest') {
+            allChannels = await mp3toytChannels.getChannelsForUser(username);
+            console.log(`[Automation] Found ${allChannels.length} YouTube channels for ${username}`);
+        }
+
+        if (allChannels.length === 0) {
+            return res.status(400).json({ success: false, error: 'No connected channels found. Please connect an account first.' });
+        }
+
+        // 2. Determine Channel (Consume based on first available)
+        let stats = {};
+        if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+            stats = await fs.readJson(AUTOMATION_STATS_PATH);
+        }
+        const userCount = stats[username] || 0;
+
+        // Always pick the FIRST available channel for consumption
+        const targetChannel = allChannels[0];
+
+        console.log(`[Automation] Consuming Channel: ${targetChannel.channelTitle} (ID: ${targetChannel.channelId}) | Count: ${userCount}/6`);
+
+        // 3. Setup Session
+        const sessionId = `auto_${uuidv4().substring(0, 8)}`;
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
+        await fs.ensureDir(sessionDir);
+
+        // 4. Download Thumbnail with Fallback
+        let imagePath = path.join(sessionDir, 'image.jpg');
+        let thumbnailSuccess = false;
+
+        if (thumbUrl) {
+            console.log(`[Automation] Downloading thumbnail: ${thumbUrl}`);
+            try {
+                await downloadImage(thumbUrl, imagePath, username, sessionId);
+                if (await fs.pathExists(imagePath)) {
+                    thumbnailSuccess = true;
+                    console.log(`[Automation] Thumbnail downloaded: ${imagePath}`);
+                }
+            } catch (err) {
+                console.warn(`[Automation] Thumbnail download failed: ${err.message}. Using fallback.`);
+            }
+        }
+
+        if (!thumbnailSuccess) {
+            console.log(`[Automation] No thumbnail provided or download failed. Picking fallback...`);
+            const fallbackPath = await getRandomFallbackThumbnail();
+            if (fallbackPath) {
+                await fs.copy(fallbackPath, imagePath);
+                console.log(`[Automation] Using fallback thumbnail: ${fallbackPath}`);
+            } else {
+                console.error(`[Automation] CRITICAL: No fallback thumbnails found in ${FALLBACK_THUMBNAILS_DIR}`);
+                // If everything fails, we still need AN image to prevent FFmpeg crash
+                // We'll try to find any image in the logos directory or just let it fail later
+            }
+        }
+
+        // 5. Start background processing (Don't block response)
+        (async () => {
+            try {
+                const downloadedFiles = [];
+                let videoTitle = '';
+                let videoDescription = '';
+
+                // Fetch metadata from the first link (for title/description)
+                console.log(`[Automation] Fetching metadata for title/description...`);
+                const meta = await getYoutubeMetadata(links[0]);
+                videoTitle = meta.title;
+                videoDescription = meta.description;
+
+                // Download all audio links
+                for (let i = 0; i < links.length; i++) {
+                    const link = links[i];
+                    console.log(`[Automation] [Song ${i + 1}/${links.length}] Downloading audio (Opus): ${link}`);
+                    const audioFilename = `audio_${i}_${Date.now()}.opus`;
+                    const audioPath = path.join(sessionDir, audioFilename);
+
+                    await downloadAudio(link, audioPath, 'opus');
+                    console.log(`[Automation] [Song ${i + 1}/${links.length}] Downloaded successfully.`);
+
+                    if (await fs.pathExists(audioPath)) {
+                        downloadedFiles.push(audioPath);
+                    }
+                }
+
+                if (downloadedFiles.length === 0) throw new Error('No audio files downloaded.');
+
+                // 6. Concatenate if multiple songs
+                let finalAudioPath = downloadedFiles[0];
+                if (downloadedFiles.length > 1) {
+                    console.log(`[Automation] Merging ${downloadedFiles.length} songs into one video...`);
+                    finalAudioPath = await concatenateAudioFiles(sessionDir);
+                    console.log(`[Automation] Merging complete: ${finalAudioPath}`);
+                }
+
+                // 7. Determine Scheduling (6-video cycle)
+                const cycleIndex = userCount % 6;
+                let visibility = 'public';
+                let publishAt = null;
+
+                console.log(`[Automation] [User: ${username}] Current upload count: ${userCount} (Cycle Index: ${cycleIndex}/5)`);
+
+                if (cycleIndex > 0) {
+                    visibility = 'private'; // Scheduled videos must be private first
+                    const daysOffset = cycleIndex * 2;
+                    const publishDate = new Date();
+                    publishDate.setDate(publishDate.getDate() + daysOffset);
+
+                    // Randomize hour (9 AM to 9 PM) and minutes
+                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                    const randomMin = Math.floor(Math.random() * 60);
+                    publishDate.setHours(randomHour, randomMin, 0, 0);
+
+                    publishAt = publishDate.toISOString();
+                    console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from now: ${publishAt}`);
+                } else {
+                    const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                    if (randomDays === 0) {
+                        console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
+                    } else {
+                        visibility = 'private';
+                        const publishDate = new Date();
+                        publishDate.setDate(publishDate.getDate() + randomDays);
+
+                        const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                        const randomMin = Math.floor(Math.random() * 60);
+                        publishDate.setHours(randomHour, randomMin, 0, 0);
+
+                        publishAt = publishDate.toISOString();
+                        console.log(`[Automation] [Mode: RANDOM_SCHEDULE] First video scheduled for ${randomDays} days from now: ${publishAt}`);
+                    }
+                }
+
+                // 8. Add to videoQueue
+                const platform = targetChannel.platform || 'youtube';
+                console.log(`[Automation] Queuing for ${targetChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
+
+                jobStatus[sessionId] = { status: 'queued', message: 'Automated video prepared.' };
+                videoQueue.push({
+                    sessionId,
+                    audioPath: finalAudioPath,
+                    imagePath,
+                    title: videoTitle,
+                    description: videoDescription,
+                    tags: '', // Remove hardcoded tags
+                    visibility,
+                    publishAt,
+                    channelId: targetChannel.channelId,
+                    platform,
+                    plan: req.session.plan || 'free'
+                });
+
+                // Increment and save stats
+                const nextCount = userCount + 1;
+
+                // Track total lifetime videos created by automation
+                stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
+
+                if (nextCount >= 6) {
+                    console.log(`[Automation] 🏆 Channel ${targetChannel.channelTitle} reached 6/6 uploads. DELETING from system...`);
+                    await mp3toytChannels.deleteChannel(targetChannel.channelId);
+                    await deleteToken(targetChannel.channelId); // Clean up the token as well
+                    stats[username] = 0; // Reset for next channel in line
+                } else {
+                    stats[username] = nextCount;
+                }
+
+                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                console.log(`[Automation] Stats updated. ${username} is at ${stats[username]}/6. Lifetime Total: ${stats.total_lifetime_videos}`);
+
+                processVideoQueue();
+
+            } catch (bgError) {
+                console.error(`[Automation BG Error] Session ${sessionId}:`, bgError.message);
+                jobStatus[sessionId] = { status: 'failed', message: bgError.message };
+            }
+        })();
+
+        res.json({
+            success: true,
+            message: `Video queued for ${targetChannel.channelTitle}. Songs: ${links.length}. Next switch in ${6 - ((userCount + 1) % 6)} videos.`,
+            sessionId
+        });
+
+    } catch (error) {
+        console.error('[Automation Error]', error);
+        res.status(500).json({ success: false, error: 'Failed to start automation.' });
     }
 });
 
@@ -1091,7 +1376,7 @@ router.get('/auth/mp3toyt', (req, res) => {
 
 router.get('/auth/facebook', async (req, res) => {
     try {
-        const redirectUri = `${req.protocol}://${req.get('host')}/auth/facebook/callback`;
+        const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
         const authUrl = await getFacebookAuthUrl(redirectUri);
         if (!authUrl) {
             return res.send(`
@@ -1131,7 +1416,7 @@ router.get('/auth/facebook/callback', async (req, res) => {
     if (!code) return res.status(400).send('No code provided');
 
     try {
-        const redirectUri = `${req.protocol}://${req.get('host')}/auth/facebook/callback`;
+        const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
         const tokenData = await getFacebookTokenFromCode(code, redirectUri);
         const userInfo = await getFacebookUserInfo(tokenData.access_token);
 
@@ -1163,7 +1448,7 @@ router.get('/auth/facebook/callback', async (req, res) => {
 
 router.get('/mp3toyt/oauth2callback', async (req, res) => {
     const { code } = req.query;
-    const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
+    const redirectUri = getRedirectUri(req, '/mp3toyt/oauth2callback');
 
     console.log(`[Auth] Callback received with code length: ${code ? code.length : 0}`);
 
@@ -1178,9 +1463,13 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
         if (savedAuth && savedAuth.channelId) {
             console.log(`[Auth] Authenticated channel: ${savedAuth.channelTitle} (${savedAuth.channelId})`);
 
+            // Capture the username from the current session
+            const username = req.session && req.session.username ? req.session.username : 'guest';
+
             const channelData = {
                 channelId: savedAuth.channelId,
                 channelTitle: savedAuth.channelTitle,
+                username: username, // Link to current user
                 thumbnail: savedAuth.channelThumbnail, // Save thumbnail
                 authenticatedAt: new Date().toISOString()
             };

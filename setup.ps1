@@ -28,6 +28,18 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     Write-Host "Node.js is already installed." -ForegroundColor Green
 }
 
+# Install PM2 (Process Manager)
+if (-not (Get-Command pm2 -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing PM2 (Process Manager)..." -ForegroundColor Yellow
+    npm install pm2 -g
+}
+
+# Install Cloudflare Tunnel (cloudflared)
+if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing Cloudflare Tunnel (cloudflared)..." -ForegroundColor Yellow
+    choco install cloudflared -y
+}
+
 # Detect Paths
 $ffmpegPath = (Get-Command ffmpeg.exe -ErrorAction SilentlyContinue).Source
 $ffprobePath = (Get-Command ffprobe.exe -ErrorAction SilentlyContinue).Source
@@ -78,6 +90,14 @@ Write-Host "Updating .env file with Windows paths..." -ForegroundColor Yellow
 Update-EnvVar "FFMPEG_PATH" $ffmpegPath
 Update-EnvVar "FFPROBE_PATH" $ffprobePath
 Update-EnvVar "YT_DLP_PATH" $ytDlpPath
+
+# Domain Setup
+Write-Host "`n--- Domain Setup (liveenity.com) ---" -ForegroundColor Cyan
+$currentBaseUrl = "https://liveenity.com"
+$userInput = Read-Host "Enter your production domain (default: $currentBaseUrl)"
+if ($userInput) { $currentBaseUrl = $userInput }
+Update-EnvVar "BASE_URL" $currentBaseUrl
+Write-Host "BASE_URL updated to: $currentBaseUrl" -ForegroundColor Green
 
 Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
 $tokensFile = Join-Path $PSScriptRoot "tokens.json"

@@ -26,6 +26,20 @@ else
     echo "Node.js is already installed."
 fi
 
+# Install PM2
+if ! command -v pm2 &> /dev/null; then
+    echo "Installing PM2..."
+    sudo npm install pm2 -g
+fi
+
+# Install Cloudflare Tunnel
+if ! command -v cloudflared &> /dev/null; then
+    echo "Installing Cloudflare Tunnel..."
+    curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+    sudo dpkg -i cloudflared.deb
+    rm cloudflared.deb
+fi
+
 # Install or Update yt-dlp
 echo "Installing/Updating yt-dlp..."
 sudo python3 -m pip install -U yt-dlp
@@ -63,6 +77,14 @@ update_env_var() {
 update_env_var "FFMPEG_PATH" "$FFMPEG_LOC"
 update_env_var "FFPROBE_PATH" "$FFPROBE_LOC"
 update_env_var "YT_DLP_PATH" "$YT_DLP_LOC"
+
+# Domain Setup
+echo ""
+echo "--- Domain Setup (liveenity.com) ---"
+read -p "Enter your production domain (default: https://liveenity.com): " USER_DOMAIN
+USER_DOMAIN=${USER_DOMAIN:-https://liveenity.com}
+update_env_var "BASE_URL" "$USER_DOMAIN"
+echo "BASE_URL updated to: $USER_DOMAIN"
 
 echo "Creating placeholder JSON files if missing..."
 [ -f tokens.json ] || echo "[]" > tokens.json

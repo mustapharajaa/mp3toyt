@@ -19,3 +19,4 @@ export const CHANNELS_PATH = path.join(__dirname, '../channels.json');
 export const FACEBOOK_TOKENS_PATH = path.join(__dirname, '../facebook_tokens.json');
 export const FACEBOOK_CREDENTIALS_PATH = path.join(__dirname, '../facebook_credentials.json');
 export const USERS_PATH = path.join(__dirname, '../users.json');
+export const AUTOMATION_STATS_PATH = path.join(__dirname, '../automation_stats.json');
