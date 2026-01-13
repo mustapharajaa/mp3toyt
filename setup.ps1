@@ -173,8 +173,13 @@ cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
 pm2 stop cf-tunnel 2>$null | Out-Null
 pm2 delete cf-tunnel 2>$null | Out-Null
-# Using a quoted string is often more reliable for PM2 on Windows for global commands
-pm2 start "cloudflared tunnel run --url http://localhost:8000 mp3-tunnel" --name cf-tunnel
+
+# Detect absolute path to cloudflared to avoid PM2 resolution issues on Windows
+$cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
+if (-not $cfPath) { $cfPath = 'cloudflared' } # Fallback
+
+# Use the absolute path and the -- separator to pass arguments correctly
+pm2 start $cfPath --name cf-tunnel -- tunnel run --url http://localhost:8000 mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
