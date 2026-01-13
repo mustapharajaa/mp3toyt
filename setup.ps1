@@ -181,7 +181,7 @@ Write-Host '1. Run this command to start your server:'
 Write-Host '   npm start' -ForegroundColor Yellow
 Write-Host ''
 Write-Host '2. To put your site online, open a NEW terminal and run:'
-Write-Host '   cloudflared tunnel --url http://localhost:8000' -ForegroundColor Yellow
+Write-Host '   cloudflared tunnel run --url http://localhost:8000 mp3-tunnel' -ForegroundColor Yellow
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
