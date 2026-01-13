@@ -1,5 +1,5 @@
 // This file will handle YouTube API authentication and live event creation
-import fs from 'fs';
+import fs from 'fs-extra';
 import { google } from 'googleapis';
 // Track active FFmpeg processes (Stubbed here to prevent circular dependency with main.js)
 const ffmpegActiveKeys = new Set();

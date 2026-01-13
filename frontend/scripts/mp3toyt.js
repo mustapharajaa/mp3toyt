@@ -22,6 +22,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const fileUpload = document.getElementById('file-upload');
     const uploadButton = document.getElementById('upload-button');
 
+    // Check currently logged in user to show Automation button
+    fetch('/api/auth/me')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.user && data.user.username === 'erraja') {
+                const automationBtn = document.getElementById('automation-btn');
+                if (automationBtn) {
+                    automationBtn.style.display = 'flex';
+                }
+            }
+        })
+        .catch(err => console.error('Auth check failed:', err));
+
     const state = { audioReady: false, imageReady: false, audioCount: 0 };
 
     // Initialize Default Schedule Data (v178)

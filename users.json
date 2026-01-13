@@ -14,5 +14,13 @@
     "role": "user",
     "plan": "free",
     "createdAt": "2026-01-13T03:13:31.147Z"
+  },
+  {
+    "id": "d284a5e7-e8e9-47cc-a086-13fea60467e8",
+    "username": "pp",
+    "password": "$2b$10$eFLtDfIGA8vbOfgtuhPQXulp6pFBl4jbXATHwjr6AJghsvuEYccG6",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-13T21:15:25.723Z"
   }
 ]

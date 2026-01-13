@@ -17,8 +17,9 @@ Write-Host "Installing FFmpeg..." -ForegroundColor Yellow
 choco install ffmpeg -y
 
 # Install yt-dlp
-Write-Host "Installing yt-dlp..." -ForegroundColor Yellow
+Write-Host "Installing/Updating yt-dlp..." -ForegroundColor Yellow
 choco install yt-dlp -y
+& yt-dlp -U  # Force update to latest version to handle YouTube's latest decryption
 
 # Install Node.js (LTS)
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
