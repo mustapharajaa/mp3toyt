@@ -116,9 +116,23 @@ pm2 save
 echo "-----------------------------------"
 echo "🚀 PRODUCTION READY!"
 echo "1. Your app is running in the background via PM2."
-echo "2. LOGIN REQUIRED: Opening Cloudflare login in your browser..."
+echo "2. LOGIN REQUIRED: A unique URL will appear below."
+echo "👉 COPY and OPEN this URL in your local browser to link your domain."
 echo "-----------------------------------"
 
 cloudflared tunnel login
+
+echo ""
+echo "-----------------------------------"
+echo "🔗 FINAL STEP: CONFIGURE DOMAIN"
+echo "Opening Cloudflare Dashboard..."
+echo "Navigate to: Networks -> Tunnels -> Public Hostnames"
+echo "Map https://liveenity.com to http://localhost:8000"
+echo "-----------------------------------"
+
+# Best effort to open browser on Linux
+if command -v xdg-open &> /dev/null; then
+    xdg-open "https://one.dash.cloudflare.com/" &
+fi
 
 echo "Setup complete!"

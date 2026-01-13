@@ -145,9 +145,20 @@ pm2 save
 Write-Host "`n-----------------------------------" -ForegroundColor Cyan
 Write-Host "🚀 PRODUCTION READY!" -ForegroundColor Green
 Write-Host "1. Your app is running in the background via PM2."
-Write-Host "2. LOGIN REQUIRED: Opening Cloudflare login in your browser..."
+Write-Host "2. LOGIN REQUIRED: A unique URL will appear below."
+Write-Host "👉 COPY and OPEN this URL in your local browser to link your domain."
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 
 cloudflared tunnel login
+
+Write-Host "`n-----------------------------------" -ForegroundColor Cyan
+Write-Host "🔗 FINAL STEP: CONFIGURE DOMAIN"
+Write-Host "I am opening the Cloudflare Dashboard for you now..."
+Write-Host "Navigate to: Networks -> Tunnels -> Public Hostnames"
+Write-Host "Map https://liveenity.com to http://localhost:8000"
+Write-Host "-----------------------------------" -ForegroundColor Cyan
+
+# Force open the dashboard in the RDP browser
+Start-Process "https://one.dash.cloudflare.com/"
 
 Write-Host "`nSetup complete!" -ForegroundColor White
