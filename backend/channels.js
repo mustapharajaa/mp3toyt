@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
 import { getTokenForChannel, getAuthenticatedChannelInfo } from './youtube-api.js';
+import { LOGOS_DIR } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,6 +125,19 @@ async function deleteChannel(channelId) {
     }
 
     console.log(`[CHANNELS] Deleted channel with ID: ${channelId}`);
+
+    // Delete the cached logo file
+    const channelToDelete = channels.find(c => c.channelId === channelId);
+    if (channelToDelete) {
+        const platform = channelToDelete.platform || 'youtube';
+        const logoName = `${platform}_${channelId}.jpg`;
+        const logoPath = path.join(LOGOS_DIR, logoName);
+        if (fs.existsSync(logoPath)) {
+            fs.removeSync(logoPath);
+            console.log(`[CHANNELS] Deleted cached logo: ${logoName}`);
+        }
+    }
+
     await fs.writeFile(CHANNELS_FILE, JSON.stringify({ channels: filteredChannels }, null, 2));
 }
 

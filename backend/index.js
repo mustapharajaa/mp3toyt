@@ -1,4 +1,4 @@
-import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH, AUTOMATION_STATS_PATH } from './config.js'; // Load variables
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH, AUTOMATION_STATS_PATH, LOGOS_DIR } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -47,7 +47,6 @@ router.use(express.json());
 // --- Multer Configuration ---
 const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
-const LOGOS_DIR = path.join(__dirname, '../logos');
 const FALLBACK_THUMBNAILS_DIR = path.join(__dirname, '../temp/thumbnails');
 const upload = multer();
 
@@ -487,8 +486,11 @@ router.get('/channels', async (req, res) => {
             const data = await fs.readJson(CHANNELS_PATH);
             const ytChannelsRaw = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : []);
 
-            // Filter by user
-            const userYtChannels = ytChannelsRaw.filter(c => c.username === username || !c.username); // Fallback for old data
+            // Filter by user and ensure data validity (prevents {} or nulls)
+            const userYtChannels = ytChannelsRaw.filter(c =>
+                (c && c.channelId && c.channelTitle) &&
+                (c.username === username || !c.username)
+            );
 
             // Non-blocking Caching logic
             const processedYtChannels = await Promise.all(userYtChannels.map(async c => {
@@ -1501,10 +1503,24 @@ router.post('/delete-channel', async (req, res) => {
             const data = await fs.readJson(CHANNELS_PATH);
             if (data.channels) {
                 const initialLength = data.channels.length;
+                const channelToDelete = data.channels.find(c => c.channelId === channelId);
+
                 data.channels = data.channels.filter(c => c.channelId !== channelId);
+
                 if (data.channels.length < initialLength) {
                     await fs.writeJson(CHANNELS_PATH, data, { spaces: 2 });
                     console.log(`[Delete Channel] Removed from ${CHANNELS_PATH}`);
+
+                    // Delete the cached logo file
+                    if (channelToDelete) {
+                        const platform = channelToDelete.platform || 'youtube';
+                        const logoName = `${platform}_${channelId}.jpg`;
+                        const logoPath = path.join(LOGOS_DIR, logoName);
+                        if (await fs.pathExists(logoPath)) {
+                            await fs.remove(logoPath);
+                            console.log(`[Delete Channel] Deleted cached logo: ${logoName}`);
+                        }
+                    }
                 }
             }
         }
