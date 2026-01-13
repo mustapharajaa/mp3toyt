@@ -178,8 +178,9 @@ pm2 delete cf-tunnel 2>$null | Out-Null
 $cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
 if (-not $cfPath) { $cfPath = 'cloudflared' }
 
-# Standard "tunnel run" command. Settings (localhost:8000) are handled in the Dashboard.
-pm2 start $cfPath --name cf-tunnel -- tunnel run mp3-tunnel
+# IMPORTANT: Windows PM2 requires the full command to be a single argument if using an executable
+$pm2Cmd = "$cfPath tunnel run mp3-tunnel"
+pm2 start "$pm2Cmd" --name cf-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
