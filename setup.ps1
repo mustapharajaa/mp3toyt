@@ -152,23 +152,26 @@ Write-Host '-----------------------------------' -ForegroundColor Cyan
 cloudflared tunnel login
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
-# Check if tunnel already exists
-$tunnels = cloudflared tunnel list
-if ($tunnels -notmatch 'mp3-tunnel') {
+# Improved check for existing tunnel
+$tunnelExists = cloudflared tunnel list | Select-String 'mp3-tunnel'
+if (-not $tunnelExists) {
     Write-Host 'Creating Cloudflare Tunnel: mp3-tunnel...' -ForegroundColor Yellow
     cloudflared tunnel create mp3-tunnel
+} else {
+    Write-Host 'Tunnel mp3-tunnel already exists, skipping creation.' -ForegroundColor Green
 }
 
 # Extract domain for DNS routing (remove https://)
 $domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
 Write-Host "Routing domain $domainOnly to tunnel..." -ForegroundColor Yellow
+# Force the route (will fail if DNS record exists, which is handled by instructions)
 cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 
 # Start Tunnel with PM2
 Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
 pm2 delete cf-tunnel 2>$null | Out-Null
-# Use more robust PM2 command format for Windows
-pm2 start cloudflared --name cf-tunnel -- tunnel --url http://localhost:8000 run mp3-tunnel
+# Correct syntax: put --url after the 'run' command
+pm2 start cloudflared --name cf-tunnel -- tunnel run --url http://localhost:8000 mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
