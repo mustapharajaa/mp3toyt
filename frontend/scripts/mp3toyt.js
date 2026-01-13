@@ -16,24 +16,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageStatus = document.getElementById('image-status');
     const channelSelector = document.getElementById('channelSelector');
     const createVideoBtn = document.getElementById('create-video-btn');
+
+    // Instant UI check for admin buttons (prevents flicker)
+    const wasAdmin = localStorage.getItem('mp3toyt_isAdmin') === 'true';
+    if (wasAdmin) {
+        const automationBtn = document.getElementById('automation-btn');
+        const managementBtn = document.getElementById('management-btn');
+        if (automationBtn) automationBtn.style.display = 'flex';
+        if (managementBtn) managementBtn.style.display = 'flex';
+    }
+
     const jobProgress = document.getElementById('job-progress');
     const progressBar = document.querySelector('.progress-bar');
     const progressStatus = document.getElementById('progress-status');
     const fileUpload = document.getElementById('file-upload');
     const uploadButton = document.getElementById('upload-button');
 
-    // Check currently logged in user to show Automation button
-    fetch('/api/auth/me')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.user && data.user.username === 'erraja') {
-                const automationBtn = document.getElementById('automation-btn');
-                if (automationBtn) {
-                    automationBtn.style.display = 'flex';
-                }
-            }
-        })
-        .catch(err => console.error('Auth check failed:', err));
 
     const state = { audioReady: false, imageReady: false, audioCount: 0 };
 
@@ -1151,6 +1149,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.success) {
                     showNotification(`Success! Video queued for ${links.length} song(s).`, 'success');
                     autoAudioLinks.value = ''; // Clear links for next batch
+                    autoImageLink.value = ''; // Clear thumbnail link for next batch
+
+                    // Show success icon in popup
+                    const successIcon = document.getElementById('auto-success-icon');
+                    if (successIcon) {
+                        successIcon.style.display = 'inline-block';
+                        setTimeout(() => {
+                            if (successIcon) successIcon.style.display = 'none';
+                        }, 4000);
+                    }
                     // Keep the modal open as requested
                 } else {
                     showNotification(result.error || 'Failed to start automation', 'error');
@@ -1186,8 +1194,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const managementBtn = document.getElementById('management-btn');
                 const upgradeBtn = document.getElementById('upgrade-btn');
+                const automationBtn = document.getElementById('automation-btn');
 
-                if (managementBtn) managementBtn.style.display = (data.user.username === 'erraja') ? 'flex' : 'none';
+                const isAdmin = data.user.username === 'erraja';
+                localStorage.setItem('mp3toyt_isAdmin', isAdmin); // Sync for next refresh
+                if (managementBtn) managementBtn.style.display = isAdmin ? 'flex' : 'none';
+                if (automationBtn) automationBtn.style.display = isAdmin ? 'flex' : 'none';
                 if (upgradeBtn) upgradeBtn.style.display = (data.user.plan !== 'pro') ? 'flex' : 'none';
 
                 // Show Manage Users if Admin
@@ -1202,6 +1214,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Auth check error:', err);
+        } finally {
+            // Wait at least 3 seconds so the user can see the beautiful loader
+            setTimeout(() => {
+                const loader = document.getElementById('page-loader');
+                if (loader) {
+                    loader.style.opacity = '0';
+                    loader.style.visibility = 'hidden';
+                    setTimeout(() => loader.remove(), 500); // Remove from DOM after transition
+                }
+            }, 800);
         }
     }
     checkAuth();
