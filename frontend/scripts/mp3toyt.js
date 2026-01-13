@@ -90,34 +90,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadChannels() {
         try {
-            const response = await fetch('/channels');
-            const data = await response.json();
-            const channels = data.channels || (Array.isArray(data) ? data : []);
+            const res = await fetch('/channels');
+            const channels = await res.json();
+            const channelSelector = document.getElementById('channelSelector');
             const channelList = document.getElementById('channel-list');
-            channelList.innerHTML = '';
-            if (channels.length > 0) {
-                document.getElementById('manage-channels-btn').style.display = 'block';
-                const selectChannel = (id) => {
+            if (channelSelector && channelList) {
+                channelSelector.innerHTML = '';
+                channelList.innerHTML = '';
+
+                function selectChannel(id, platform) {
                     document.querySelectorAll('.channel-item').forEach(i => i.classList.remove('selected'));
-                    const el = channelList.querySelector(`.channel-item[data-id="${id}"]`);
-                    if (el) el.classList.add('selected');
+                    const item = document.querySelector(`.channel-item[data-id="${id}"]`);
+                    if (item) item.classList.add('selected');
                     channelSelector.value = id;
-                    updateCreateButton();
+                    channelSelector.dataset.platform = platform;
                     localStorage.setItem('selectedChannelId', id);
-                };
+                    localStorage.setItem('selectedChannelPlatform', platform);
+
+                    // Toggle platform-specific fields
+                    const tagsField = document.getElementById('tags')?.closest('.form-group');
+                    const visibilityField = document.querySelector('.visibility-options')?.closest('.form-group');
+
+                    if (platform === 'facebook') {
+                        if (tagsField) tagsField.style.display = 'none';
+                        if (visibilityField) visibilityField.style.display = 'none';
+                    } else {
+                        if (tagsField) tagsField.style.display = 'block';
+                        if (visibilityField) visibilityField.style.display = 'block';
+                    }
+
+                    updateCreateButton();
+                }
+
                 channels.forEach(channel => {
+                    const option = document.createElement('option');
+                    option.value = channel.channelId;
+                    option.textContent = `${channel.platform === 'facebook' ? '[FB] ' : ''}${channel.channelTitle}`;
+                    channelSelector.appendChild(option);
+
                     const item = document.createElement('div');
-                    item.className = 'channel-item'; item.dataset.id = channel.channelId;
-                    item.innerHTML = `<div class="avatar-wrapper"><div class="delete-btn">×</div><div class="check-icon"><i class="fas fa-check"></i></div><img src="${channel.thumbnail}" class="channel-avatar"></div><div class="channel-title">${channel.channelTitle}</div>`;
-                    item.addEventListener('click', (e) => { if (!e.target.classList.contains('delete-btn')) selectChannel(channel.channelId); });
-                    item.querySelector('.delete-btn').addEventListener('click', (e) => { e.stopPropagation(); showConfirmationToast(`Disconnect <strong>${channel.channelTitle}</strong>?`, () => deleteChannel(channel.channelId, channel.channelTitle)); });
+                    item.className = 'channel-item';
+                    item.dataset.id = channel.channelId;
+                    item.dataset.platform = channel.platform || 'youtube';
+
+                    const platformIcon = channel.platform === 'facebook'
+                        ? '<i class="fab fa-facebook" style="position: absolute; bottom: 0; right: 0; color: #1877f2; background: white; border-radius: 50%; font-size: 14px;"></i>'
+                        : '<i class="fab fa-youtube" style="position: absolute; bottom: 0; right: 0; color: #ff0000; background: white; border-radius: 50%; font-size: 14px;"></i>';
+
+                    item.innerHTML = `
+                        <div class="avatar-wrapper">
+                            <div class="delete-btn">×</div>
+                            <div class="check-icon"><i class="fas fa-check"></i></div>
+                            <img src="${channel.thumbnail}" class="channel-avatar">
+                            ${platformIcon}
+                        </div>
+
+                        <div class="channel-title">${channel.channelTitle}</div>
+                    `;
+
+                    item.addEventListener('click', (e) => {
+                        if (!e.target.classList.contains('delete-btn')) selectChannel(channel.channelId, channel.platform || 'youtube');
+                    });
+
+                    const deleteBtn = item.querySelector('.delete-btn');
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showConfirmationToast(`Disconnect <strong>${channel.channelTitle}</strong>?`, () => deleteChannel(channel.channelId, channel.channelTitle));
+                        });
+                    }
                     channelList.appendChild(item);
                 });
+
+                if (channels.length > 0) {
+                    const mBtn = document.getElementById('manage-channels-btn');
+                    if (mBtn) mBtn.style.display = 'block';
+                }
+
                 const savedId = localStorage.getItem('selectedChannelId');
-                if (savedId && channels.find(c => c.channelId === savedId)) selectChannel(savedId);
-                else if (channels.length > 0) selectChannel(channels[0].channelId);
+                const savedPlatform = localStorage.getItem('selectedChannelPlatform') || 'youtube';
+                if (savedId && channels.find(c => c.channelId === savedId)) {
+                    selectChannel(savedId, savedPlatform);
+                } else if (channels.length > 0) {
+                    selectChannel(channels[0].channelId, channels[0].platform || 'youtube');
+                }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error('Error loading channels:', e);
+        }
     }
 
     const manageChannelsBtn = document.getElementById('manage-channels-btn');
@@ -616,6 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
             description: fd.get('description'),
             tags: fd.get('tags'),
             channelId: channelSelector.value,
+            platform: channelSelector.dataset.platform || 'youtube',
             visibility: visibility,
             overlay: window.currentOverlay
         };
@@ -750,27 +811,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- Management Dropdown ---
+    const managementBtn = document.getElementById('management-btn');
+    const managementDropdown = document.getElementById('management-dropdown');
+    const addAccountBtn = document.getElementById('add-account-btn');
+    const addAccountDropdown = document.getElementById('add-account-dropdown');
+
+    if (managementBtn && managementDropdown) {
+        managementBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            addAccountDropdown?.classList.remove('show');
+            managementDropdown.classList.toggle('show');
+        });
+    }
+
+    if (addAccountBtn && addAccountDropdown) {
+        addAccountBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            managementDropdown?.classList.remove('show');
+            addAccountDropdown.classList.toggle('show');
+        });
+    }
+
     window.addEventListener('click', (e) => {
         if (e.target === cookiesModal) closeCookies();
         if (e.target === tokensModal) closeTokens();
         if (e.target === channelsJSONModal) closeChannelsJSON();
 
-        // Close management dropdown when clicking outside
+        // Close dropdowns when clicking outside
         if (managementDropdown && !managementDropdown.contains(e.target) && e.target !== managementBtn) {
             managementDropdown.classList.remove('show');
         }
+        if (addAccountDropdown && !addAccountDropdown.contains(e.target) && e.target !== addAccountBtn) {
+            addAccountDropdown.classList.remove('show');
+        }
     });
-
-    // --- Management Dropdown ---
-    const managementBtn = document.getElementById('management-btn');
-    const managementDropdown = document.getElementById('management-dropdown');
-
-    if (managementBtn && managementDropdown) {
-        managementBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            managementDropdown.classList.toggle('show');
-        });
-    }
 
     // --- YouTube Tokens Management ---
     const tokensModal = document.getElementById('tokensModal');
@@ -889,4 +964,161 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadChannels();
     checkSessionStatus();
+    // --- Facebook Credentials Management ---
+    const fbCredsModal = document.getElementById('fbCredsModal');
+    const manageFbCredsBtn = document.getElementById('manage-fb-creds-btn');
+    const closeFbCredsModal = document.getElementById('close-fb-creds-modal');
+    const cancelFbCredsBtn = document.getElementById('cancel-fb-creds-btn');
+    const saveFbCredsBtn = document.getElementById('save-fb-creds-btn');
+    const fbCredsEditor = document.getElementById('fb-creds-editor');
+
+    const openFacebookCredentials = async () => {
+        try {
+            const res = await fetch('/get-facebook-credentials');
+            const data = await res.json();
+            if (data.success) {
+                fbCredsEditor.value = data.credentials;
+                fbCredsModal.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Error fetching FB creds:', err);
+            showNotification('Error loading Facebook credentials', 'error');
+        }
+    };
+
+    window.openFacebookCredentials = openFacebookCredentials; // Expose globally
+
+    if (manageFbCredsBtn) {
+        manageFbCredsBtn.addEventListener('click', openFacebookCredentials);
+    }
+
+    const closeFbCreds = () => { fbCredsModal.style.display = 'none'; };
+    if (closeFbCredsModal) closeFbCredsModal.onclick = closeFbCreds;
+    if (cancelFbCredsBtn) cancelFbCredsBtn.onclick = closeFbCreds;
+
+    if (saveFbCredsBtn) {
+        saveFbCredsBtn.addEventListener('click', async () => {
+            try {
+                JSON.parse(fbCredsEditor.value); // Validate JSON
+            } catch (e) {
+                showNotification('Invalid JSON format.', 'error');
+                return;
+            }
+
+            saveFbCredsBtn.disabled = true;
+            saveFbCredsBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-facebook-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: fbCredsEditor.value })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showNotification('Facebook credentials saved!', 'success');
+                    closeFbCreds();
+                } else {
+                    showNotification(result.message || 'Failed to save', 'error');
+                }
+            } catch (err) {
+                console.error('Save FB creds error:', err);
+                showNotification('Error saving credentials', 'error');
+            } finally {
+                saveFbCredsBtn.disabled = false;
+                saveFbCredsBtn.textContent = 'Save Credentials';
+            }
+        });
+    }
+
+    // --- Pricing Modal ---
+    const pricingModal = document.getElementById('pricingModal');
+    const upgradeBtn = document.getElementById('upgrade-btn');
+    const closePricingBtn = document.getElementById('close-pricing-modal');
+    const billingToggle = document.getElementById('billing-toggle');
+    const toggleMonthly = document.getElementById('toggle-monthly');
+    const toggleYearly = document.getElementById('toggle-yearly');
+    const discountCallout = document.getElementById('discount-callout');
+
+    const proPrice = document.getElementById('pro-price');
+    const proSubtitle = document.getElementById('pro-subtitle');
+
+    if (upgradeBtn) {
+        upgradeBtn.onclick = () => { pricingModal.style.display = 'flex'; };
+    }
+
+    const upgradeTextLink = document.getElementById('upgrade-text-link');
+    if (upgradeTextLink) {
+        upgradeTextLink.onclick = (e) => {
+            e.preventDefault();
+            pricingModal.style.display = 'flex';
+        };
+    }
+
+    if (closePricingBtn) {
+        closePricingBtn.onclick = () => { pricingModal.style.display = 'none'; };
+    }
+
+    if (billingToggle) {
+        billingToggle.onclick = () => {
+            const isYearly = toggleYearly.classList.toggle('active');
+            toggleMonthly.classList.toggle('active', !isYearly);
+
+            if (isYearly) {
+                proPrice.innerHTML = '$8<span>/mo</span>';
+                proSubtitle.textContent = '$96 paid yearly. Cancel anytime.';
+                if (discountCallout) discountCallout.style.opacity = '1';
+            } else {
+                proPrice.innerHTML = '$12<span>/mo</span>';
+                proSubtitle.textContent = '$12 paid monthly. Cancel anytime.';
+                if (discountCallout) discountCallout.style.opacity = '0.5'; // Dim it when monthly selected
+            }
+        };
+    }
+
+    // Modal behavior for Facebook credentials and Pricing
+    window.addEventListener('click', (e) => {
+        if (e.target === fbCredsModal) closeFbCreds();
+        if (e.target === pricingModal) pricingModal.style.display = 'none';
+    });
+
+    // Auto-open from URL param (for redirects from error pages)
+    if (urlParams.get('action') === 'manage-fb-creds') {
+        openFacebookCredentials();
+    }
+
+    // --- Auth State Check ---
+    async function checkAuth() {
+        try {
+            const res = await fetch('/api/auth/me');
+            const data = await res.json();
+            const loginBtn = document.getElementById('login-btn-header');
+            const logoutBtn = document.getElementById('logout-btn-header');
+            const manageUsersLink = document.getElementById('manage-users-link');
+
+            if (data.success && data.user) {
+                // User is logged in
+                if (loginBtn) loginBtn.style.display = 'none';
+                if (logoutBtn) {
+                    logoutBtn.style.display = 'inline-block';
+                    logoutBtn.onclick = async () => {
+                        await fetch('/api/auth/logout', { method: 'POST' });
+                        window.location.reload();
+                    };
+                }
+
+                // Show Manage Users if Admin
+                if (data.user.role === 'admin' && manageUsersLink) {
+                    manageUsersLink.style.display = 'block';
+                }
+
+            } else {
+                // Not logged in
+                if (loginBtn) loginBtn.style.display = 'inline-block';
+                if (logoutBtn) logoutBtn.style.display = 'none';
+            }
+        } catch (err) {
+            console.error('Auth check error:', err);
+        }
+    }
+    checkAuth();
 });

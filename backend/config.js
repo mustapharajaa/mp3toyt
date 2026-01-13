@@ -16,3 +16,6 @@ export const TOKEN_PATH = path.join(__dirname, '../tokens.json');
 export const CREDENTIALS_PATH = path.join(__dirname, '../credentials.json');
 export const ACTIVE_STREAMS_PATH = path.join(__dirname, '../active_streams.json'); // Maintained for compatibility
 export const CHANNELS_PATH = path.join(__dirname, '../channels.json');
+export const FACEBOOK_TOKENS_PATH = path.join(__dirname, '../facebook_tokens.json');
+export const FACEBOOK_CREDENTIALS_PATH = path.join(__dirname, '../facebook_credentials.json');
+export const USERS_PATH = path.join(__dirname, '../users.json');

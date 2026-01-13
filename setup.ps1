@@ -81,10 +81,16 @@ Update-EnvVar "YT_DLP_PATH" $ytDlpPath
 
 Write-Host "Creating placeholder JSON files if missing..." -ForegroundColor Yellow
 $tokensFile = Join-Path $PSScriptRoot "tokens.json"
-if (-not (Test-Path $tokensFile)) { "[]" | Set-Content $tokensFile }
+if (-not (Test-Path $tokensFile)) { "[]" | Out-File -FilePath $tokensFile -Encoding utf8 }
 
 $channelsFile = Join-Path $PSScriptRoot "channels.json"
-if (-not (Test-Path $channelsFile)) { '{"channels": []}' | Set-Content $channelsFile }
+if (-not (Test-Path $channelsFile)) { '{"channels": []}' | Out-File -FilePath $channelsFile -Encoding utf8 }
+
+$facebookTokensFile = Join-Path $PSScriptRoot "facebook_tokens.json"
+if (-not (Test-Path $facebookTokensFile)) { "[]" | Out-File -FilePath $facebookTokensFile -Encoding utf8 }
+
+$facebookCredentialsFile = Join-Path $PSScriptRoot "facebook_credentials.json"
+if (-not (Test-Path $facebookCredentialsFile)) { "{}" | Set-Content $facebookCredentialsFile }
 
 $credentialsFile = Join-Path $PSScriptRoot "credentials.json"
 if (-not (Test-Path $credentialsFile)) { "{}" | Set-Content $credentialsFile }

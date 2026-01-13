@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sleek Pricing Section</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Caveat:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            margin: 0;
+            overflow: hidden;
+            transform: scale(0.75);
+            transform-origin: top left;
+            width: 133.33%;
+            /* Compensate for scale(0.75) -> 100/0.75 */
+            height: 133.33%;
+        }
+
+        .font-handwritten {
+            font-family: 'Caveat', cursive;
+        }
+
+        .bg-wavy {
+            background-color: #050505;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10 Q 25 20 50 10 T 100 10' stroke='%23111111' fill='none' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+        }
+
+        @media (min-width: 768px) {
+            .bg-wavy {
+                background-size: 100px 24px;
+            }
+        }
+
+        .pricing-pill {
+            position: absolute;
+            height: calc(100% - 10px);
+            width: calc(50% - 5px);
+            background-color: white;
+            border-radius: 9999px;
+            transition: all 0.3s ease-in-out;
+            z-index: 0;
+        }
+
+        .pricing-card-pro {
+            background: #121212;
+            border-color: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        .pricing-card-free {
+            background: #0f0f0f;
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Hide scrollbar for a pro feel */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        * {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+    </style>
+</head>
+
+<body class="bg-wavy text-white min-h-screen flex flex-col items-center justify-center py-16 px-4">
+
+    <!-- Header Section -->
+    <div class="text-center mb-12 relative w-full max-w-2xl px-4 flex flex-col items-center">
+        <h1 class="text-3xl md:text-5xl font-bold mb-3 tracking-tight">Simple pricing, no surprises</h1>
+        <p class="text-gray-400 text-lg md:text-xl font-medium opacity-80">Start free. Pay only if you love it.</p>
+
+        <div class="mt-10 relative">
+            <!-- Toggle Switch -->
+            <div id="pricing-toggle"
+                class="bg-[#121212] p-1.5 rounded-full flex items-center w-[340px] h-14 relative border border-white/5 shadow-inner cursor-pointer">
+                <div id="pill" class="pricing-pill translate-x-[calc(100%)]"></div>
+
+                <button onclick="setCycle('monthly')" id="btn-monthly"
+                    class="relative flex-1 text-lg font-semibold transition-colors duration-300 z-10 text-gray-500 hover:text-gray-300">
+                    Monthly
+                </button>
+                <button onclick="setCycle('yearly')" id="btn-yearly"
+                    class="relative flex-1 text-lg font-semibold transition-colors duration-300 z-10 text-black">
+                    Yearly
+                </button>
+            </div>
+
+            <!-- 33% off handwritten callout -->
+            <div id="callout"
+                class="absolute left-[calc(100%-15px)] top-[-10px] hidden md:block w-44 h-22 pointer-events-none transition-opacity duration-300 opacity-100">
+                <div class="relative w-full h-full">
+                    <svg class="absolute left-0 top-0 w-26 h-12 text-gray-500/70" viewBox="0 0 120 50" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M110 40 C 100 20, 60 5, 15 15" stroke="currentColor" stroke-width="1.8"
+                            stroke-linecap="round" fill="none" />
+                        <path d="M25 8 L 12 16 L 24 22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <div class="absolute left-18 top-10 -rotate-[15deg]">
+                        <span
+                            class="font-handwritten text-4xl text-gray-400/90 whitespace-nowrap select-none tracking-wide">
+                            33% off!
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing Cards Container -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl w-full px-4">
+
+        <!-- Free Plan -->
+        <div
+            class="relative p-8 md:p-10 rounded-[36px] flex flex-col transition-all duration-300 border pricing-card-free">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                <div
+                    class="w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-xl border bg-[#1a1a1a] border-white/10 text-gray-400">
+                    🎨
+                </div>
+            </div>
+
+            <div class="mt-8 text-center flex-grow flex flex-col">
+                <h2 class="text-3xl font-bold mb-2 text-gray-100">Free, forever</h2>
+                <p class="text-gray-500 mb-8 text-sm md:text-base leading-relaxed">The original Chrome extension</p>
+
+                <div class="text-3xl font-bold mb-8">$0</div>
+
+                <button
+                    class="w-full py-4 px-6 rounded-full font-bold text-lg mb-8 transition-all active:scale-[0.98] bg-[#1a1a1a] border border-white/10 hover:bg-[#252525] text-white">
+                    Get the free extension
+                </button>
+
+                <div class="w-full h-px bg-white/5 mb-8"></div>
+
+                <ul class="space-y-5 text-left flex-grow">
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-gray-800">
+                            <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Convert
+                            MP3s to Videos instantly</span>
+                    </li>
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-gray-800">
+                            <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Custom
+                            background images</span>
+                    </li>
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-gray-800">
+                            <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Direct
+                            YouTube upload</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Pro Plan -->
+        <div
+            class="relative p-8 md:p-10 rounded-[36px] flex flex-col transition-all duration-300 border pricing-card-pro">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                <div
+                    class="w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-xl border bg-[#1a1a1a] border-white/20 text-blue-400">
+                    ✨
+                </div>
+            </div>
+
+            <div class="absolute top-8 right-10">
+                <div
+                    class="bg-[#1a1a1a] border border-white/10 text-[10px] font-bold tracking-widest px-2.5 py-1 rounded text-gray-400 uppercase">
+                    Pro
+                </div>
+            </div>
+
+            <div class="mt-8 text-center flex-grow flex flex-col">
+                <h2 id="pro-price-title" class="text-3xl font-bold mb-2 text-white">$8/mo</h2>
+                <p id="pro-price-subtitle" class="text-gray-500 mb-8 text-sm md:text-base leading-relaxed">$96 paid
+                    yearly. Cancel anytime.</p>
+
+                <button
+                    class="w-full py-4 px-6 rounded-full font-bold text-lg mb-8 transition-all active:scale-[0.98] bg-white text-black hover:bg-gray-200">
+                    Try Pro free for 7 days
+                </button>
+
+                <div class="w-full h-px bg-white/5 mb-8"></div>
+
+                <ul class="space-y-5 text-left flex-grow">
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-blue-900/40">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Manage
+                            multiple YouTube channels</span>
+                    </li>
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-blue-900/40">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Upload
+                            to Facebook Pages</span>
+                    </li>
+                    <li class="flex items-start gap-3 group">
+                        <div
+                            class="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-blue-900/40">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <span
+                            class="text-gray-400 text-base leading-snug group-hover:text-gray-300 transition-colors">Schedule
+                            uploads for later</span>
+                    </li>
+                    <li class="flex items-center gap-3 pt-2">
+                        <span class="w-6 h-6 flex items-center justify-center text-blue-500 font-bold text-xl">+</span>
+                        <span class="text-blue-500/90 text-base font-medium leading-snug">All free features
+                            included</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setCycle(cycle) {
+            const pill = document.getElementById('pill');
+            const btnMonthly = document.getElementById('btn-monthly');
+            const btnYearly = document.getElementById('btn-yearly');
+            const callout = document.getElementById('callout');
+            const proTitle = document.getElementById('pro-price-title');
+            const proSubtitle = document.getElementById('pro-price-subtitle');
+
+            if (cycle === 'monthly') {
+                pill.style.transform = 'translateX(0)';
+                btnMonthly.classList.remove('text-gray-500');
+                btnMonthly.classList.add('text-black');
+                btnYearly.classList.remove('text-black');
+                btnYearly.classList.add('text-gray-500');
+                callout.style.opacity = '0';
+                proTitle.textContent = '$12/mo';
+                proSubtitle.textContent = '$12 paid monthly. Cancel anytime.';
+            } else {
+                pill.style.transform = 'translateX(calc(100%))';
+                btnYearly.classList.remove('text-gray-500');
+                btnYearly.classList.add('text-black');
+                btnMonthly.classList.remove('text-black');
+                btnMonthly.classList.add('text-gray-500');
+                callout.style.opacity = '1';
+                proTitle.textContent = '$8/mo';
+                proSubtitle.textContent = '$96 paid yearly. Cancel anytime.';
+            }
+        }
+    </script>
+</body>
+
+</html>

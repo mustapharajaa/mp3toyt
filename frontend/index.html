@@ -4,814 +4,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MP3 to YouTube uploader tool</title>
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>MP3toYT - Convert Audio to Video</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="channel-styles.css">
-    <!-- Cropper.js -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f0f2f5;
-            color: #333;
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: white;
             margin: 0;
-            padding: 2rem;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            min-height: 100vh;
         }
 
-        .header {
-            width: 800px;
-            max-width: 100%;
+        /* Navbar */
+        .navbar {
+            padding: 1.5rem 2rem;
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
             align-items: center;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-        }
-
-        .header span {
-            font-weight: bold;
-            margin-right: 0.5rem;
-        }
-
-        .connect-btn {
-            margin-left: 1rem;
-            font-size: 0.9rem;
-            color: #1877f2;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .connect-btn:hover {
-            text-decoration: none;
-            opacity: 0.9;
-        }
-
-        /* Dropdown Menu Styles */
-        .dropdown {
-            position: relative;
-            display: inline-block;
-            margin-right: 15px;
-        }
-
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            right: 0;
-            background-color: #ffffff;
-            min-width: 180px;
-            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.15);
-            z-index: 1000;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-top: 8px;
-            border: 1px solid #e0e0e0;
-        }
-
-        .dropdown-content button {
-            color: #333;
-            padding: 12px 16px;
-            text-decoration: none;
-            display: block;
+            max-width: 1200px;
+            margin: 0 auto;
             width: 100%;
-            text-align: left;
-            border: none;
-            background: none;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-family: inherit;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            box-sizing: border-box;
         }
 
-        .dropdown-content button:hover {
-            background-color: #f8f9fa;
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        .dropdown-content i {
-            font-size: 1rem;
-        }
-
-        .show {
-            display: block;
-        }
-
-        .container {
-            background-color: #fff;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            width: 800px;
-            max-width: 100%;
-            display: flex;
-            gap: 2rem;
-        }
-
-        .left-column,
-        .right-column {
+        /* Hero Section */
+        .hero {
             flex: 1;
             display: flex;
-            flex-direction: column;
-        }
-
-        h2 {
-            font-size: 1rem;
-            font-weight: 500;
-            color: #555;
-            margin-top: 0;
-        }
-
-        h2 span {
-            font-weight: 400;
-            font-size: 0.85rem;
-            color: #777;
-        }
-
-        .upload-btn {
-            background-color: #1877f2;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0.5rem;
-            transition: background-color 0.3s;
-        }
-
-        .upload-btn:hover {
-            background-color: #166fe5;
-        }
-
-        .drop-zone {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 20px;
+            padding: 2rem;
             text-align: center;
-            transition: all 0.3s ease;
-            margin: 1rem 0;
-            background-color: #fafafa;
+            gap: 4rem;
+            flex-wrap: wrap;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
         }
 
-        .drop-zone.dragover {
-            background-color: #e6f7ff;
-            border-color: #1877f2;
-            transform: scale(1.02);
+        .hero-content {
+            flex: 1;
+            min-width: 300px;
+            text-align: left;
         }
 
-        .drop-zone p {
-            margin: 0 0 10px 0;
-            color: #777;
-            pointer-events: none;
+        .hero h1 {
+            font-size: 3.5rem;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            font-weight: 800;
         }
 
-        .status-box {
-            background-color: #fee2e2;
-            color: #dc2626;
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.9rem;
+        .hero h1 span {
+            color: #3b82f6;
         }
 
-        .status-box.success {
-            background-color: #dcfce7;
-            color: #16a34a;
+        .hero p {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            line-height: 1.6;
         }
 
-        .status-box.error {
-            background-color: #ffe4e6;
+        /* Login Card */
+        .login-card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            width: 100%;
+            max-width: 400px;
+            color: #1e293b;
         }
 
-        .status-box.loading {
-            background-color: #fffbe6;
-            color: #ca8a04;
-        }
-
-        .remove-icon {
-            margin-left: auto;
-            cursor: pointer;
-            opacity: 0.7;
-            padding: 4px;
-            transition: all 0.2s;
-        }
-
-        .remove-icon:hover {
-            opacity: 1;
-            background-color: rgba(0, 0, 0, 0.05);
-            border-radius: 50%;
-            color: #dc2626;
-            /* Turn red on hover */
-        }
-
-        .details-dropdown {
-            margin-bottom: 0.5rem;
-        }
-
-        .details-dropdown summary {
-            cursor: pointer;
-            font-size: 0.9rem;
-            padding: 8px;
-            border-radius: 4px;
-            background-color: #f0f2f5;
+        .login-card h2 {
+            margin-top: 0;
+            color: #0f172a;
+            font-size: 1.75rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
         }
 
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 1.25rem;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 4px;
+            margin-bottom: 0.5rem;
+            color: #475569;
             font-weight: 500;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            text-align: left;
         }
 
-        .form-group input,
-        .form-group textarea {
+        .form-group input {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
+            padding: 0.75rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
             font-size: 1rem;
             box-sizing: border-box;
+            transition: border-color 0.2s;
         }
 
-        .form-group textarea {
-            min-height: 80px;
-            resize: vertical;
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px #93c5fd;
         }
 
-        .visibility-options button {
-            background-color: #e4e6eb;
-            color: #333;
-            border: 1px solid transparent;
-            padding: 8px 16px;
-            cursor: pointer;
-        }
-
-        .visibility-options button.active {
-            background-color: #16a34a;
-            color: white;
-        }
-
-        .visibility-options button:first-child {
-            border-radius: 6px 0 0 6px;
-        }
-
-        .visibility-options button:last-child {
-            border-radius: 0 6px 6px 0;
-        }
-
-        .final-status {
-            text-align: center;
-            padding: 1rem;
-            background-color: #fffbe6;
-            color: #ca8a04;
-            border-radius: 6px;
-            margin: 1rem 0;
-        }
-
-        #job-progress {
-            margin: 1rem 0;
-            padding: 1rem;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            background-color: #f9f9f9;
-        }
-
-        .progress-bar-container {
+        button.btn-primary {
             width: 100%;
-            background-color: #e0e0e0;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
-
-        .progress-bar {
-            width: 0%;
-            height: 10px;
-            background-color: #1877f2;
-            border-radius: 4px;
-            transition: width 0.5s ease-in-out;
-        }
-
-        .progress-message {
-            font-size: 0.9rem;
-            color: #555;
-            text-align: center;
-        }
-
-        .progress-details {
-            font-size: 0.8rem;
-            color: #777;
-        }
-
-        .create-btn {
-            background-color: #1877f2;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
             color: white;
-            padding: 12px;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-radius: 10px;
             font-size: 1rem;
-            width: 100%;
-        }
-
-        .create-btn:disabled {
-            background-color: #e4e6eb;
-            color: #a0a0a0;
-            cursor: not-allowed;
-        }
-
-        /* Image Preview Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 3000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.8);
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 80%;
-            max-width: 900px;
-            border-radius: 8px;
-            position: relative;
-        }
-
-        .close-modal {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            position: absolute;
-            right: 15px;
-            top: 5px;
-            z-index: 10;
+            transition: transform 0.1s, opacity 0.2s;
+            margin-top: 0.5rem;
         }
 
-        .close-modal:hover,
-        .close-modal:focus {
-            color: black;
-            text-decoration: none;
-            cursor: pointer;
+        button.btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
         }
 
-        .preview-wrapper {
-            width: 100%;
-            /* 16:9 Aspect Ratio Hack */
-            padding-top: 56.25%;
-            position: relative;
-            background-color: #000;
-            /* Black background to help visualize edges if image doesn't fill (though ours will) */
-            border: 2px solid #333;
+        button.btn-primary:active {
+            transform: translateY(0);
         }
 
-        .preview-image-full {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: fill;
-            /* CRITICAL: Matches ffmpeg scale=1280:720 behavior */
-        }
-
-        .preview-title {
+        .switch-link {
             text-align: center;
-            margin-bottom: 10px;
-            font-weight: 500;
-            color: #333;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #64748b;
+        }
+
+        .switch-link a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .error-msg {
+            background-color: #fef2f2;
+            color: #ef4444;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+            text-align: center;
+            border: 1px solid #fecaca;
+        }
+
+        .hidden {
+            display: none;
         }
     </style>
 </head>
 
 <body>
-    <div class="header">
-        <a href="/upgrade" class="connect-btn" style="background-color: #f59e0b; margin-right: 15px;">Upgrade</a>
-        <div class="dropdown">
-            <button type="button" id="management-btn" class="connect-btn"
-                style="background-color: #4b5563; color: white; padding: 6px 15px; border-radius: 6px; border:none; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-right: 0;">
-                <i class="fas fa-cog"></i> Management <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
-            </button>
-            <div id="management-dropdown" class="dropdown-content">
-                <button type="button" id="manage-channels-btn" style="display: none;"><i class="fas fa-list-ul"
-                        style="color: #4b5563;"></i> Manage Channels</button>
-                <button type="button" id="manage-cookies-btn"><i class="fas fa-cookie-bite" style="color: #ef4444;"></i>
-                    YouTube Cookies</button>
-                <button type="button" id="manage-tokens-btn"><i class="fas fa-key" style="color: #3b82f6;"></i> YouTube
-                    Tokens</button>
-                <button type="button" id="manage-channels-json-btn"><i class="fas fa-database"
-                        style="color: #10b981;"></i> youtube Channels </button>
-            </div>
+
+    <nav class="navbar">
+        <div class="logo">MP3toYT</div>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-content">
+            <h1>Turn your Audio<br>into <span>Viral Videos</span></h1>
+            <p>The easiest way to upload MP3s to YouTube with custom backgrounds, visualizations, and more.</p>
         </div>
 
-        <a href="/auth/mp3toyt" id="connect-channel" class="connect-btn">Connect New Channel</a>
-    </div>
-
-    <form id="upload-form" class="container">
-        <!-- ... existing form content ... -->
-        <div class="left-column">
-            <h2>1. Select an Audio File</h2>
-            <h2>2. Select an Image</h2>
-
-            <div id="drop-zone" class="drop-zone">
-                <p>Drag & Drop files here or</p>
-                <input type="file" id="file-upload" accept="audio/*,image/*" multiple style="display:none;">
-                <button type="button" id="upload-button" class="upload-btn"><i class="fas fa-upload"></i> Browse
-                    Files</button>
-            </div>
-
-            <div class="form-group" style="margin-top: 10px;">
-                <label for="audio-url">Audio URL</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="audio-url" name="audioUrl" class="form-control" style="flex: 1;"
-                        placeholder="https://example.com/audio.mp3">
-                    <button type="button" id="paste-audio-button" style="padding: 10px 15px;" title="Paste"><i
-                            class="fas fa-paste"></i></button>
-                    <button type="button" id="add-audio-button" class="upload-btn"
-                        style="padding: 10px 15px; width: auto;" title="Add Audio"><i class="fas fa-plus"></i></button>
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-top: 10px;">
-                <label for="image-url">Image URL</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="image-url" name="imageUrl" class="form-control" style="flex: 1;"
-                        placeholder="https://example.com/image.jpg">
-                    <button type="button" id="paste-image-button" style="padding: 10px 15px;" title="Paste"><i
-                            class="fas fa-paste"></i></button>
-                </div>
-            </div>
-
-            <div id="audio-status" class="status-box">
-                <i class="fas fa-times-circle"></i> Audio not uploaded
-            </div>
-            <div id="image-status" class="status-box">
-                <i class="fas fa-times-circle"></i> Image not uploaded
-            </div>
-            <!-- Added click hint -->
-            <div id="image-preview-container" style="margin-top: 10px; text-align: center; cursor: pointer;"
-                title="Click to Preview 16:9 Output"></div>
-
-            <details class="details-dropdown">
-                <summary>Create background Image</summary>
-                <p>Options for generating a background will go here.</p>
-            </details>
-            <details class="details-dropdown">
-                <summary>Image from the ID3 Tag</summary>
-                <p>Options for extracting image from audio metadata.</p>
-            </details>
-        </div>
-
-        <div class="right-column">
-            <label style="display: block; margin-bottom: 5px;">Select YouTube Channel:</label>
-            <link rel="stylesheet" href="channel-styles.css">
-            <div id="channel-list" class="channel-grid">
-                <!-- Channels will be injected here as avatars -->
-            </div>
-            <!-- Hidden input to store selected channel ID for form submission -->
-            <input type="hidden" id="channelSelector" required>
-            <div class="form-group">
-                <label for="title">Title</label>
-                <input type="text" id="title" name="title">
-            </div>
-            <div class="form-group">
-                <label for="description">Description</label>
-                <textarea id="description" name="description"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="tags">Tags</label>
-                <input type="text" id="tags" name="tags">
-                <small style="color: #777;">Separate tags with spaces or commas. Surround phrases with
-                    double-quotes</small>
-            </div>
-
-            <div class="form-group">
-                <div class="visibility-options">
-                    <button type="button" data-visibility="schedule">Schedule</button>
-                    <button type="button" class="active" data-visibility="public">Public</button>
-                    <button type="button" data-visibility="private">Private</button>
-                    <button type="button" data-visibility="unlisted">Unlisted</button>
-                </div>
-                <div id="schedule-container" style="display: none; margin-top: 10px;">
-                    <div style="display: flex; gap: 10px;">
-                        <div style="flex: 2;">
-                            <label for="schedule-date">Publish Date</label>
-                            <input type="date" id="schedule-date" name="scheduleDate" class="form-control">
-                            <small style="color: #777; font-size: 0.8rem; margin-top: 4px;">mm/dd/yyyy</small>
-                        </div>
-                        <div style="flex: 1;">
-                            <label for="schedule-time">Publish Time</label>
-                            <input type="time" id="schedule-time" name="scheduleTime" class="form-control">
-                        </div>
+        <div class="login-card">
+            <!-- Login Form -->
+            <div id="login-form">
+                <h2>Welcome Back</h2>
+                <div id="login-error" class="error-msg"></div>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="login-username" required autocomplete="username"
+                            placeholder="Enter your username">
                     </div>
-                </div>
-            </div>
-
-            <details class="details-dropdown">
-                <summary>Upload Options</summary>
-                <p>Additional upload options will go here.</p>
-            </details>
-
-            <a href="#" style="margin: 1rem 0; text-align: center;">Upgrade here to remove the watermark, ads, and
-                access more settings!</a>
-
-            <div id="status-container">
-                <div id="final-status" class="final-status">
-                    Waiting for you to upload Audio and an Image.
-                </div>
-                <div id="job-progress" style="display: none;">
-                    <div class="progress-bar-container">
-                        <div class="progress-bar"></div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" required autocomplete="current-password"
+                            placeholder="••••••••">
                     </div>
-                    <div class="progress-details">
-                        <p><strong>Status:</strong> <span id="progress-status">Queued</span></p>
-                        <p id="progress-result" style="display: none;"></p>
+                    <button type="submit" class="btn-primary" id="login-btn">Log In</button>
+                </form>
+                <div class="switch-link">
+                    New here? <a onclick="toggleForms()">Create an account</a>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="register-form" class="hidden">
+                <h2>Get Started</h2>
+                <div id="register-error" class="error-msg"></div>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="reg-username" required autocomplete="username"
+                            placeholder="Choose a username">
                     </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="reg-password" required autocomplete="new-password"
+                            placeholder="Create a password">
+                    </div>
+                    <button type="submit" class="btn-primary" id="reg-btn">Create Account</button>
+                </form>
+                <div class="switch-link">
+                    Already valid? <a onclick="toggleForms()">Log in</a>
                 </div>
             </div>
-
-            <button type="submit" id="create-video-btn" class="create-btn" disabled>Create Video!</button>
-        </div>
-    </form>
-
-    <div id="notification-container"></div>
-
-    <!-- Image Editor Modal -->
-    <div id="imageEditorModal" class="modal">
-        <!-- POPUP IS THE VIDEO FRAME: Fixed 16:9 Window (Reverted) -->
-        <div class="modal-content"
-            style="max-width: 95vw; width: 1100px; max-height: 90vh; aspect-ratio: 16 / 9; padding: 0; background: #000; overflow: hidden; position: relative; border: 2px solid #555; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border-radius: 8px;">
-
-            <!-- Editor Title Overlay -->
-            <div
-                style="position: absolute; top: 0; left: 0; right: 0; z-index: 10000; padding: 10px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: center; color: white;">
-                <h3 style="margin: 0; font-weight: 500; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Crop Image (16:9)</h3>
-                <span class="close-modal"
-                    style="font-size: 28px; cursor: pointer; background: rgba(0,0,0,0.5); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">&times;</span>
-            </div>
-
-            <!-- Video Window (Moving image behind this) -->
-            <div class="editor-wrapper" id="editor-wrapper"
-                style="width: 100%; height: 100%; background: #000; position: relative; overflow: visible; display: flex; justify-content: center; align-items: center;">
-
-                <!-- Viewport with hidden overflow for the image -->
-                <div id="image-viewport"
-                    style="width: 100%; height: 100%; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center;">
-                    <img id="editorImage" src="" style="max-width: 100%; max-height: 100%; display: block;">
-                </div>
-
-                <!-- STICKY DOTS: Outside hidden viewport but inside wrapper -->
-                <div class="sticky-dot" id="dot-tl"></div>
-                <div class="sticky-dot" id="dot-tr"></div>
-                <div class="sticky-dot" id="dot-bl"></div>
-                <div class="sticky-dot" id="dot-br"></div>
-            </div>
-
-            <!-- Overlay Toolbar (Bottom Left) -->
-            <div class="editor-toolbar"
-                style="position: absolute; bottom: 20px; left: 20px; z-index: 2000; display: flex; gap: 8px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 8px; backdrop-filter: blur(5px);">
-                <button type="button" class="tool-btn" data-action="zoom-in" title="Zoom In"><i
-                        class="fas fa-plus"></i></button>
-                <button type="button" class="tool-btn" data-action="zoom-out" title="Zoom Out"><i
-                        class="fas fa-minus"></i></button>
-                <button type="button" class="tool-btn" data-action="fit" title="Fit (Pudding)"
-                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px;">PUDDING</button>
-                <button type="button" class="tool-btn" data-action="stretch" title="Stretch"
-                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px;">STRETCH</button>
-                <button type="button" class="tool-btn" data-action="rotate-left" title="Rotate L"><i
-                        class="fas fa-undo"></i></button>
-                <button type="button" class="tool-btn" data-action="rotate-right" title="Rotate R"><i
-                        class="fas fa-redo"></i></button>
-                <button type="button" class="tool-btn" data-action="flip-h" title="Flip H"><i
-                        class="fas fa-arrows-alt-h"></i></button>
-                <button type="button" class="tool-btn" data-action="flip-v" title="Flip V"><i
-                        class="fas fa-arrows-alt-v"></i></button>
-                <button type="button" class="tool-btn" data-action="reset" title="Reset"><i
-                        class="fas fa-sync-alt"></i></button>
-                <div style="width: 1px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
-                <button type="button" class="tool-btn" id="add-overlay-btn" title="Add Overlay"
-                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px; background: #1677ff;">OVERLAY</button>
-                <input type="file" id="overlay-file-input" accept="image/*,video/*" style="display: none;">
-            </div>
-
-            <!-- Overlay Actions (Bottom Right) -->
-            <div style="position: absolute; bottom: 20px; right: 20px; z-index: 2000; display: flex; gap: 10px;">
-                <button id="cancel-edit-btn"
-                    style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; cursor: pointer; backdrop-filter: blur(5px);">Cancel</button>
-                <button id="save-crop-btn"
-                    style="padding: 10px 25px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(22,163,74,0.3);">Save
-                    & Apply</button>
-            </div>
-
-            <style>
-                .tool-btn {
-                    background: transparent;
-                    border: none;
-                    width: 36px;
-                    height: 36px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    cursor: pointer;
-                    border-radius: 4px;
-                    transition: all 0.2s;
-                    font-size: 1.1rem;
-                }
-
-                .tool-btn:hover {
-                    background: rgba(255, 255, 255, 0.1);
-                }
-
-                /* STICKY DOTS: Glued to Image Corners & Ready for Zoom Interaction */
-                .sticky-dot {
-                    position: absolute;
-                    width: 18px;
-                    /* Slightly larger for easier grabbing */
-                    height: 18px;
-                    background: #ffeb3b;
-                    border: 2px solid #000;
-                    border-radius: 50%;
-                    z-index: 1000;
-                    cursor: nwse-resize;
-                    /* Interaction cue */
-                    transform: translate(-50%, -50%);
-                    display: none;
-                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-                }
-
-                /* 16:9 Viewport Guide (Transparent) */
-                .cropper-view-box {
-                    outline: 1px solid rgba(255, 255, 255, 0.5) !important;
-                    outline-offset: -1px;
-                }
-
-                .cropper-face {
-                    background-color: transparent !important;
-                }
-
-                /* CLEAN WINDOW UI (No Darkness) */
-                .cropper-modal {
-                    opacity: 0 !important;
-                }
-
-                .cropper-container {
-                    position: absolute !important;
-                    top: 0;
-                    left: 0;
-                    width: 100% !important;
-                    height: 100% !important;
-                }
-
-                .cropper-line,
-                .cropper-point {
-                    display: none !important;
-                }
-
-                .cropper-view-box,
-                .cropper-face {
-                    outline: 1px solid rgba(255, 255, 255, 0.2) !important;
-                    background-color: transparent !important;
-                }
-
-                .cropper-crop-box {
-                    pointer-events: none !important;
-                }
-
-                .cropper-drag-box {
-                    pointer-events: auto !important;
-                    background: transparent !important;
-                    opacity: 0 !important;
-                }
-
-                /* TRUE STRETCH: Force distortion when mode is active */
-                .is-stretching .cropper-canvas img,
-                .is-stretching .cropper-view-box img {
-                    object-fit: fill !important;
-                    width: 100% !important;
-                    height: 100% !important;
-                    transform: none !important;
-                    /* Force distort over Cropper scaling */
-                }
-
-                .is-stretching .cropper-view-box {
-                    outline: 2px solid #ffeb3b !important;
-                    z-index: 1001;
-                }
-
-                /* Ensure dots are ALWAYS top-most */
-                .sticky-dot {
-                    z-index: 9999 !important;
-                }
-
-                .cropper-container {
-                    z-index: 100 !important;
-                }
-            </style>
         </div>
     </div>
 
-    <!-- YouTube Cookies Modal -->
-    <div id="cookiesModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; padding: 30px;">
-            <span class="close-modal" id="close-cookies-modal">&times;</span>
-            <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-cookie-bite"></i> YouTube Browser Cookies</h2>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
-                Paste your YouTube cookies here (Netscape format).
-                <br><small>Tip: Use extensions like "Get cookies.txt LOCALLY" to export them from your browser.</small>
-            </p>
-            <div class="form-group">
-                <textarea id="cookies-editor"
-                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
-                    placeholder="# Netscape HTTP Cookie File..."></textarea>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                <button type="button" id="cancel-cookies-btn"
-                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button type="button" id="save-cookies-btn"
-                    style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
-                    Cookies</button>
-            </div>
-        </div>
-    </div>
+    <script src="/scripts/auth.js"></script>
+    <script>
+        // Check if already logged in, redirect to app
+        fetch('/api/auth/me')
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.user) {
+                    window.location.href = '/app';
+                }
+            })
+            .catch(err => console.log('Not logged in'));
+    </script>
 
-    <!-- YouTube Tokens Modal -->
-    <div id="tokensModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; padding: 30px;">
-            <span class="close-modal" id="close-tokens-modal">&times;</span>
-            <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-key"></i> YouTube API Tokens</h2>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
-                Edit <code>tokens.json</code> directly.
-                <br><small>Warning: Incorrect values may disconnect your channels.</small>
-            </p>
-            <div class="form-group">
-                <textarea id="tokens-editor"
-                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
-                    placeholder="[...]"></textarea>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                <button type="button" id="cancel-tokens-btn"
-                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button type="button" id="save-tokens-btn"
-                    style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
-                    Tokens</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- youtube channels Modal -->
-    <div id="channelsJSONModal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; padding: 30px;">
-            <span class="close-modal" id="close-channels-json-modal">&times;</span>
-            <h2 style="margin-top: 0; color: #10b981;"><i class="fas fa-database"></i> Channels JSON Data</h2>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
-                Edit <code>channels.json</code> directly.
-                <br><small>Note: This affects how channels are listed in the UI.</small>
-            </p>
-            <div class="form-group">
-                <textarea id="channels-json-editor"
-                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
-                    placeholder='{"channels":[]}'></textarea>
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
-                <button type="button" id="cancel-channels-json-btn"
-                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button type="button" id="save-channels-json-btn"
-                    style="padding: 10px 25px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
-                    Channels</button>
-            </div>
-        </div>
-    </div>
-
-
-    <script src="/scripts/mp3toyt.js?v=187"></script>
 </body>
 
 </html>

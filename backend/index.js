@@ -1,4 +1,4 @@
-import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH } from './config.js'; // Load variables
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode } from './youtube-api.js';
+import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
 
@@ -61,7 +62,8 @@ router.get('/download-audio', async (req, res) => {
     }
 
     try {
-        const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
         const finalAudioPath = path.join(sessionDir, 'audio.opus');
 
@@ -208,7 +210,8 @@ router.post('/download-image', async (req, res) => {
     }
 
     try {
-        const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
         const imagePath = path.join(sessionDir, 'image.jpg');
 
@@ -294,7 +297,8 @@ router.post('/upload-file', (req, res) => {
                 return res.status(400).json({ success: false, message: 'Session ID, file type, and file are required.' });
             }
 
-            const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+            const username = req.session && req.session.username ? req.session.username : 'guest';
+            const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
             await fs.ensureDir(sessionDir);
 
             let destFilename;
@@ -324,7 +328,7 @@ router.post('/upload-file', (req, res) => {
             res.json({
                 success: true,
                 message: 'File uploaded successfully.',
-                filePath: `/temp/${sessionId}/${destFilename}`,
+                filePath: `/temp/${username}/${sessionId}/${destFilename}`, // Assuming we serve /temp correctly (might need to update static serve)
                 totalDuration: totalDurationFormatted
             });
         } catch (error) {
@@ -343,7 +347,8 @@ router.post('/remove-file', async (req, res) => {
     }
 
     try {
-        const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         if (!await fs.pathExists(sessionDir)) {
             return res.json({ success: true, message: 'Session does not exist, nothing to remove.' });
         }
@@ -375,13 +380,29 @@ router.post('/remove-file', async (req, res) => {
 
 router.get('/channels', async (req, res) => {
     try {
-        const channelsPath = path.join(__dirname, '../channels.json');
-        if (await fs.pathExists(channelsPath)) {
-            const channels = await fs.readJson(channelsPath);
-            res.json(channels);
-        } else {
-            res.json([]);
+        let allChannels = [];
+
+        // YouTube Channels
+        if (await fs.pathExists(CHANNELS_PATH)) {
+            const data = await fs.readJson(CHANNELS_PATH);
+            const ytChannels = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : []);
+            allChannels = ytChannels.map(c => ({ ...c, platform: 'youtube' }));
         }
+
+        // Facebook Accounts/Pages
+        if (await fs.pathExists(FACEBOOK_TOKENS_PATH)) {
+            const data = await fs.readJson(FACEBOOK_TOKENS_PATH);
+            const fbTokens = Array.isArray(data) ? data : (data && Array.isArray(data.tokens) ? data.tokens : []);
+            const fbChannels = fbTokens.map(fb => ({
+                channelId: fb.accountId,
+                channelTitle: fb.accountTitle,
+                thumbnail: 'https://www.facebook.com/favicon.ico', // Placeholder for now
+                platform: 'facebook'
+            }));
+            allChannels = [...allChannels, ...fbChannels];
+        }
+
+        res.json(allChannels);
     } catch (error) {
         console.error('Error reading channels file:', error);
         res.status(500).json({ error: 'Failed to load channels.' });
@@ -404,25 +425,44 @@ let isProcessingVideo = false;
 async function cleanupAbandonedSessions() {
     const tempDir = TEMP_BASE_DIR;
     if (!await fs.pathExists(tempDir)) return;
-    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
-    const sessionFolders = await fs.readdir(tempDir);
-    for (const folder of sessionFolders) {
-        const folderPath = path.join(tempDir, folder);
-        try {
-            const stats = await fs.stat(folderPath);
-            if (stats.isDirectory() && stats.mtime.getTime() < threeDaysAgo) {
-                const isSessionInQueue = videoQueue.some(job => job.sessionId === folder);
-                if (!isSessionInQueue && (!jobStatus[folder] || (jobStatus[folder].status !== 'processing' && jobStatus[folder].status !== 'uploading'))) {
-                    console.log(`[Cleanup] Deleting abandoned session folder: ${folderPath}`);
-                    await fs.remove(folderPath);
+    const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000); // 3 Hours
+
+    try {
+        const userFolders = await fs.readdir(tempDir);
+        for (const userFolder of userFolders) {
+            const userFolderPath = path.join(tempDir, userFolder);
+            const stats = await fs.stat(userFolderPath);
+
+            if (stats.isDirectory()) {
+                const sessionFolders = await fs.readdir(userFolderPath);
+                for (const sessionFolder of sessionFolders) {
+                    const sessionFolderPath = path.join(userFolderPath, sessionFolder);
+                    try {
+                        const sessionStats = await fs.stat(sessionFolderPath);
+                        if (sessionStats.isDirectory() && sessionStats.mtime.getTime() < threeHoursAgo) {
+                            const isSessionInQueue = videoQueue.some(job => job.sessionId === sessionFolder);
+                            if (!isSessionInQueue && (!jobStatus[sessionFolder] || (jobStatus[sessionFolder].status !== 'processing' && jobStatus[sessionFolder].status !== 'uploading'))) {
+                                console.log(`[Cleanup] Deleting abandoned session folder (>3h): ${sessionFolderPath}`);
+                                await fs.remove(sessionFolderPath);
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`[Cleanup] Error processing session folder ${sessionFolderPath}:`, err);
+                    }
+                }
+
+                // Optional: remove empty user folders
+                const remaining = await fs.readdir(userFolderPath);
+                if (remaining.length === 0) {
+                    await fs.rmdir(userFolderPath);
                 }
             }
-        } catch (err) {
-            console.error(`[Cleanup] Error processing folder ${folderPath}:`, err);
         }
+    } catch (err) {
+        console.error(`[Cleanup] Error scanning temp dir:`, err);
     }
 }
-setInterval(cleanupAbandonedSessions, 3 * 24 * 60 * 60 * 1000);
+setInterval(cleanupAbandonedSessions, 60 * 60 * 1000); // Check every hour
 
 // --- Video Processing Logic ---
 // Helper to concatenate multiple audio files
@@ -499,12 +539,7 @@ async function getTotalSessionAudioDuration(sessionDir) {
 }
 
 // Updated function to handle merged audio and overlays (v188)
-async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, videoPath, overlay = null) {
-    // If audioPathInput is passed, use it (single file case for backward compat or direct path)
-    // But we prefer to look up all files in the session.
-    // The queue processor sends 'audioPath' but that might be just one file.
-    // Let's resolve the actual audio to use by concatenation.
-
+async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, videoPath, overlay = null, plan = 'free') {
     const sessionDir = path.dirname(imagePath);
     let audioPath = audioPathInput;
 
@@ -517,7 +552,6 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
     }
 
     let attempts = 3;
-    // ... rest of createVideoWithFfmpeg
 
     // Verify audio
     try {
@@ -536,13 +570,15 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
     // --- STEP 1: Create 1-minute Base Loop Video ---
     const loopVideoPath = path.join(path.dirname(videoPath), `loop_${sessionId}.mp4`);
     const LOOP_DURATION = 60; // 1 minute base loop
-    // If audio is shorter than loop, just make loop = audio length (plus minimal buffer)
     const exactDuration = (totalDurationSeconds < LOOP_DURATION) ? Math.ceil(totalDurationSeconds) + 1 : LOOP_DURATION;
 
     console.log(`[FFmpeg] Creating base loop video of ${exactDuration} seconds...`);
 
     await new Promise((resolve, reject) => {
         let command = ffmpeg().input(imagePath).inputOptions(['-loop 1', '-framerate 1']);
+
+        const iconPath = path.join(__dirname, 'assets', 'music_icon.png');
+        const watermarkText = 'uploaded via liveenity.com';
 
         if (overlay && overlay.path) {
             const relativeOverlayPath = overlay.path.startsWith('/') ? overlay.path.substring(1) : overlay.path;
@@ -557,8 +593,29 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
             const w = Math.round(overlay.w * 1280 / 2) * 2;
             const h = Math.round(overlay.h * 720 / 2) * 2;
 
+            let filterChain = [
+                `[0:v]scale=1280:720,setsar=1[bg]`,
+                `[1:v]scale=${w}:${h}[ovrl]`,
+                `[bg][ovrl]overlay=${x}:${y}:shortest=1[v_merged]`
+            ];
+
+            let finalOutput = 'v_merged';
+
+            if (plan === 'free') {
+                console.log('[FFmpeg] Enforcing Free Plan Watermark (Overlay Mode)');
+                command = command.input(iconPath);
+                // Draw a very long black bar to satisfy "long in right/left"
+                filterChain.push(`[v_merged]drawbox=y=0:x=w-1000:w=1000:h=40:color=black@1:t=fill[v_box]`);
+                filterChain.push(`[2:v]scale=-1:32[icon_scaled]`);
+                // Overlay icon on the left side of the bar
+                filterChain.push(`[v_box][icon_scaled]overlay=x=main_w-990:y=4[v_with_icon]`);
+                // Draw text to the right of the icon
+                filterChain.push(`[v_with_icon]drawtext=text='${watermarkText}':fontcolor=white:fontsize=32:x=main_w-940:y=2[out]`);
+                finalOutput = 'out';
+            }
+
             command
-                .complexFilter(`[0:v]scale=1280:720,setsar=1[bg];[1:v]scale=${w}:${h}[ovrl];[bg][ovrl]overlay=${x}:${y}:shortest=1`)
+                .complexFilter(filterChain.join(';'), finalOutput)
                 .outputOptions([
                     '-t', `${exactDuration}`,
                     '-r', '24',
@@ -570,19 +627,42 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
                     '-an'
                 ]);
         } else {
-            // Optimized No-Overlay Path (v188-restore)
-            command
-                .videoFilters('scale=1280:720,setsar=1')
-                .outputOptions([
-                    '-t', `${exactDuration}`,
-                    '-r', '24',
-                    '-preset', 'ultrafast',
-                    '-tune', 'stillimage',
-                    '-crf', '32',
-                    '-threads', '0',
-                    '-pix_fmt', 'yuv420p',
-                    '-an'
-                ]);
+            // Optimized No-Overlay Path
+            if (plan === 'free') {
+                console.log('[FFmpeg] Enforcing Free Plan Watermark (Standard Mode)');
+                command = command.input(iconPath);
+                command
+                    .complexFilter([
+                        '[0:v]scale=1280:720,setsar=1[bg]',
+                        '[bg]drawbox=y=0:x=w-1000:w=1000:h=40:color=black@1:t=fill[v_box]',
+                        '[1:v]scale=-1:32[icon_scaled]',
+                        '[v_box][icon_scaled]overlay=x=main_w-990:y=4[v_with_icon]',
+                        `[v_with_icon]drawtext=text='${watermarkText}':fontcolor=white:fontsize=32:x=main_w-940:y=2[out]`
+                    ], 'out')
+                    .outputOptions([
+                        '-t', `${exactDuration}`,
+                        '-r', '24',
+                        '-preset', 'ultrafast',
+                        '-tune', 'stillimage',
+                        '-crf', '32',
+                        '-threads', '0',
+                        '-pix_fmt', 'yuv420p',
+                        '-an'
+                    ]);
+            } else {
+                command
+                    .videoFilters('scale=1280:720,setsar=1')
+                    .outputOptions([
+                        '-t', `${exactDuration}`,
+                        '-r', '24',
+                        '-preset', 'ultrafast',
+                        '-tune', 'stillimage',
+                        '-crf', '32',
+                        '-threads', '0',
+                        '-pix_fmt', 'yuv420p',
+                        '-an'
+                    ]);
+            }
         }
 
         command
@@ -603,28 +683,23 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
     // --- STEP 2: Concat/Loop the Base Video with Audio (Copy Mode) ---
     // Calculate how many times we need to loop the 60s chunk to cover the audio
     const loopCount = Math.ceil(totalDurationSeconds / exactDuration) + 1; // +1 buffer
-    // Note: -stream_loop counts REPEATS, so 0 = play once. We need loopCount - 1 repeats.
-    // However, -stream_loop -1 is infinite, but -c copy cannot cut accurately.
-    // User specifically accepted "video longer than audio is fine".
-    // So we use -stream_loop {repeats} which is extremely fast.
 
     for (let i = 1; i <= attempts; i++) {
         try {
             await new Promise((resolve, reject) => {
                 console.log(`[FFmpeg] Assembly Attempt ${i}: Looping base video ${loopCount} times...`);
 
-                // Using a fresh command for the assembly
                 const command = ffmpeg()
                     .input(loopVideoPath)
                     .inputOptions([
-                        `-stream_loop ${loopCount}` // Loop the input N times
+                        `-stream_loop ${loopCount}`
                     ])
                     .input(audioPath)
                     .outputOptions([
-                        '-c copy', // COPY BOTH STREAMS (Instant Speed)
+                        '-c copy',
                         '-map 0:v',
                         '-map 1:a',
-                        '-shortest', // Stop when shortest stream ends (Audio) - might not be frame-perfect in copy mode but "video slightly longer" is accepted
+                        '-shortest',
                         '-movflags +faststart'
                     ])
                     .output(videoPath);
@@ -659,40 +734,57 @@ async function processVideoQueue() {
     if (isProcessingVideo || videoQueue.length === 0) return;
     isProcessingVideo = true;
     const job = videoQueue.shift();
-    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay } = job;
+    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform, overlay, plan } = job;
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...' };
         const creationStartTime = Date.now();
-        await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay);
+        await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
         const creationTime = Math.round((Date.now() - creationStartTime) / 1000);
 
-        jobStatus[sessionId] = { status: 'uploading', message: 'Uploading to YouTube... 0%' };
+        jobStatus[sessionId] = { status: 'uploading', message: `Uploading to ${platform === 'facebook' ? 'Facebook' : 'YouTube'}... 0%` };
         const uploadStartTime = Date.now();
 
-        // YouTube API fix: if visibility is 'schedule', use 'private' as the status
-        const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
+        let uploadResult;
+        let videoUrl;
 
-        const videoMetadata = {
-            title,
-            description,
-            tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-            privacyStatus: privacyStatus,
-            ...(publishAt && { publishAt })
-        };
+        if (platform === 'facebook') {
+            // Facebook Upload
+            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH);
+            const fbAccount = fbTokens.find(t => t.accountId === channelId);
+            if (!fbAccount) throw new Error('Facebook account not found.');
 
-        const uploadResult = await uploadVideo(channelId, outputVideoPath, videoMetadata, (percent) => {
-            jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
-        });
+            uploadResult = await uploadVideoToFacebook(channelId, fbAccount.access_token, outputVideoPath, { title, description }, (percent) => {
+                jobStatus[sessionId].message = `Uploading to Facebook... ${percent}%`;
+            });
+        } else {
+            // YouTube Upload
+            const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
+            const videoMetadata = {
+                title,
+                description,
+                tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+                privacyStatus,
+                ...(publishAt && { publishAt })
+            };
+
+            uploadResult = await uploadVideo(channelId, outputVideoPath, videoMetadata, (percent) => {
+                jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
+            });
+        }
+
+        if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
+
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);
-
-        if (!uploadResult.success) throw new Error(uploadResult.error || 'YouTube upload failed.');
+        videoUrl = (platform === 'facebook')
+            ? `https://www.facebook.com/${uploadResult.data.id}`
+            : `https://www.youtube.com/watch?v=${uploadResult.data.id}`;
 
         jobStatus[sessionId] = {
             status: 'complete',
             message: 'Upload Complete!',
-            videoUrl: `https://www.youtube.com/watch?v=${uploadResult.data.id}`,
+            videoUrl,
             creationTime,
             uploadTime
         };
@@ -721,7 +813,8 @@ router.get('/session-status', async (req, res) => {
     const { sessionId } = req.query;
     if (!sessionId) return res.status(400).json({ success: false, message: 'Session ID is missing.' });
     try {
-        const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
 
         let audioFiles = [];
         let imageExists = false;
@@ -745,8 +838,9 @@ router.get('/session-status', async (req, res) => {
             audio: audioFiles.length > 0,
             audioCount: audioFiles.length,
             totalDuration: totalDurationFormatted,
+            totalDuration: totalDurationFormatted,
             image: imageExists,
-            imageUrl: imageExists ? `/temp/${sessionId}/image.jpg` : null
+            imageUrl: imageExists ? `/temp/${username}/${sessionId}/image.jpg` : null
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error checking session status.' });
@@ -754,11 +848,12 @@ router.get('/session-status', async (req, res) => {
 });
 
 router.post('/create-video', upload.none(), async (req, res) => {
-    const { sessionId, title, description, tags, visibility, publishAt, channelId, overlay } = req.body;
+    const { sessionId, title, description, tags, visibility, publishAt, channelId, platform, overlay } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, error: 'Session ID is missing.' });
 
     try {
-        const sessionDir = path.join(TEMP_BASE_DIR, sessionId);
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         const imagePath = path.join(sessionDir, 'image.jpg');
 
         if (!await fs.pathExists(sessionDir)) {
@@ -778,8 +873,11 @@ router.post('/create-video', upload.none(), async (req, res) => {
             return res.status(400).json({ success: false, error: 'Image file not found.' });
         }
 
+        const plan = req.session && req.session.plan ? req.session.plan : 'free'; // Default to free if not set
+        console.log(`[Queue] Adding job for user: ${req.session ? req.session.username : 'guest'} (Plan: ${plan})`);
+
         jobStatus[sessionId] = { status: 'queued', message: 'Your video is in the queue.' };
-        videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay });
+        videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform: platform || 'youtube', overlay, plan });
 
         // Start processing the queue, but don't block the response.
         // Added a try-catch in case the initial call to processVideoQueue has a synchronous error.
@@ -928,6 +1026,80 @@ router.get('/auth/mp3toyt', (req, res) => {
             </body>
             </html>
         `);
+    }
+});
+
+// --- Facebook Authentication ---
+
+router.get('/auth/facebook', async (req, res) => {
+    try {
+        const redirectUri = `${req.protocol}://${req.get('host')}/auth/facebook/callback`;
+        const authUrl = await getFacebookAuthUrl(redirectUri);
+        if (!authUrl) {
+            return res.send(`
+                <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0;">
+                    <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 450px;">
+                        <h2 style="color: #1877f2;">Facebook Not Configured</h2>
+                        <p>Your Facebook App ID and Secret are missing.</p>
+                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                            <button onclick="configureNow()" style="padding: 10px 20px; border: none; background: #1877f2; color: white; border-radius: 6px; cursor: pointer; font-weight: 600;">Configure Now</button>
+                            <button onclick="window.close()" style="padding: 10px 20px; border: none; background: #e4e6eb; border-radius: 6px; cursor: pointer;">Close</button>
+                        </div>
+                        <script>
+                            function configureNow() {
+                                if (window.opener && window.opener.openFacebookCredentials) {
+                                    window.opener.openFacebookCredentials();
+                                    window.close();
+                                } else {
+                                    window.location.href = '/?action=manage-fb-creds';
+                                }
+                            }
+                        </script>
+                    </div>
+                </body>
+                </html>
+            `);
+        }
+        res.redirect(authUrl);
+    } catch (error) {
+        console.error('[Facebook Auth Error]', error);
+        res.status(500).send('Facebook Authentication Initialization Failed');
+    }
+});
+
+router.get('/auth/facebook/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.status(400).send('No code provided');
+
+    try {
+        const redirectUri = `${req.protocol}://${req.get('host')}/auth/facebook/callback`;
+        const tokenData = await getFacebookTokenFromCode(code, redirectUri);
+        const userInfo = await getFacebookUserInfo(tokenData.access_token);
+
+        // Save the user account
+        await saveFacebookToken(userInfo.user.id, userInfo.user.name, tokenData, 'user');
+
+        // Save each page account
+        for (const page of userInfo.pages) {
+            await saveFacebookToken(page.id, `${page.name} (Page)`, { access_token: page.access_token }, 'page');
+        }
+
+        res.send(`
+            <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5;">
+                    <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
+                        <h2 style="color: #1877f2;">Facebook Connected!</h2>
+                        <p>Your Facebook profile and pages have been linked.</p>
+                        <p>You can close this window now.</p>
+                        <script>setTimeout(() => window.close(), 3000);</script>
+                    </div>
+                </body>
+            </html>
+        `);
+    } catch (error) {
+        console.error('[Facebook Callback Error]', error);
+        res.status(500).send('Facebook Authentication Failed');
     }
 });
 
@@ -1113,6 +1285,39 @@ router.post('/save-channels-json', async (req, res) => {
     } catch (error) {
         console.error('Error saving channels file:', error);
         res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save channels file.', error: error.message });
+    }
+});
+
+// --- Facebook Credentials Management ---
+
+router.get('/get-facebook-credentials', async (req, res) => {
+    try {
+        if (await fs.pathExists(FACEBOOK_CREDENTIALS_PATH)) {
+            const creds = await fs.readJson(FACEBOOK_CREDENTIALS_PATH);
+            res.json({ success: true, credentials: JSON.stringify(creds, null, 2) });
+        } else {
+            res.json({ success: true, credentials: '{ "appId": "", "appSecret": "" }' });
+        }
+    } catch (error) {
+        console.error('Error reading FB credentials:', error);
+        res.status(500).json({ success: false, message: 'Failed to read Facebook credentials' });
+    }
+});
+
+router.post('/save-facebook-credentials', async (req, res) => {
+    const { credentials } = req.body;
+    try {
+        const creds = JSON.parse(credentials);
+        await fs.writeJson(FACEBOOK_CREDENTIALS_PATH, creds, { spaces: 2 });
+
+        // Update environment variables for the current process
+        process.env.FACEBOOK_APP_ID = creds.appId;
+        process.env.FACEBOOK_APP_SECRET = creds.appSecret;
+
+        res.json({ success: true, message: 'Facebook credentials saved successfully' });
+    } catch (error) {
+        console.error('Error saving FB credentials:', error);
+        res.status(500).json({ success: false, message: 'Invalid JSON format or write error' });
     }
 });
 

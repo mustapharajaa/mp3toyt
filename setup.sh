@@ -67,6 +67,8 @@ update_env_var "YT_DLP_PATH" "$YT_DLP_LOC"
 echo "Creating placeholder JSON files if missing..."
 [ -f tokens.json ] || echo "[]" > tokens.json
 [ -f channels.json ] || echo '{"channels": []}' > channels.json
+[ -f facebook_tokens.json ] || echo "[]" > facebook_tokens.json
+[ -f facebook_credentials.json ] || echo "{}" > facebook_credentials.json
 [ -f credentials.json ] || echo "{}" > credentials.json
 
 # Verify installations

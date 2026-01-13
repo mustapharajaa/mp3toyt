@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP3 to YouTube uploader tool</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="channel-styles.css">
+    <!-- Cropper.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            width: 800px;
+            max-width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            gap: 4px;
+        }
+
+        .header span {
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        .connect-btn {
+            margin-left: 0;
+            font-size: 0.9rem;
+            color: #1877f2;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .connect-btn:hover {
+            text-decoration: none;
+            opacity: 0.9;
+        }
+
+        /* Dropdown Menu Styles */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            margin-right: 0px;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: #ffffff;
+            min-width: 180px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .dropdown-content button,
+        .dropdown-content a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: none;
+            background: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-sizing: border-box;
+        }
+
+        .dropdown-content button:hover,
+        .dropdown-content a:hover {
+            background-color: #f8f9fa;
+        }
+
+        .dropdown-content i {
+            font-size: 1rem;
+        }
+
+        .show {
+            display: block;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 800px;
+            max-width: 100%;
+            display: flex;
+            gap: 2rem;
+        }
+
+        .left-column,
+        .right-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #555;
+            margin-top: 0;
+        }
+
+        h2 span {
+            font-weight: 400;
+            font-size: 0.85rem;
+            color: #777;
+        }
+
+        .upload-btn {
+            background-color: #1877f2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: background-color 0.3s;
+        }
+
+        .upload-btn:hover {
+            background-color: #166fe5;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin: 1rem 0;
+            background-color: #fafafa;
+        }
+
+        .drop-zone.dragover {
+            background-color: #e6f7ff;
+            border-color: #1877f2;
+            transform: scale(1.02);
+        }
+
+        .drop-zone p {
+            margin: 0 0 10px 0;
+            color: #777;
+            pointer-events: none;
+        }
+
+        .status-box {
+            background-color: #fee2e2;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .status-box.success {
+            background-color: #dcfce7;
+            color: #16a34a;
+        }
+
+        .status-box.error {
+            background-color: #ffe4e6;
+        }
+
+        .status-box.loading {
+            background-color: #fffbe6;
+            color: #ca8a04;
+        }
+
+        .remove-icon {
+            margin-left: auto;
+            cursor: pointer;
+            opacity: 0.7;
+            padding: 4px;
+            transition: all 0.2s;
+        }
+
+        .remove-icon:hover {
+            opacity: 1;
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 50%;
+            color: #dc2626;
+            /* Turn red on hover */
+        }
+
+        .details-dropdown {
+            margin-bottom: 0.5rem;
+        }
+
+        .details-dropdown summary {
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #f0f2f5;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .visibility-options button {
+            background-color: #e4e6eb;
+            color: #333;
+            border: 1px solid transparent;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+
+        .visibility-options button.active {
+            background-color: #16a34a;
+            color: white;
+        }
+
+        .visibility-options button:first-child {
+            border-radius: 6px 0 0 6px;
+        }
+
+        .visibility-options button:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
+        .final-status {
+            text-align: center;
+            padding: 1rem;
+            background-color: #fffbe6;
+            color: #ca8a04;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+
+        #job-progress {
+            margin: 1rem 0;
+            padding: 1rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 10px;
+            background-color: #1877f2;
+            border-radius: 4px;
+            transition: width 0.5s ease-in-out;
+        }
+
+        .progress-message {
+            font-size: 0.9rem;
+            color: #555;
+            text-align: center;
+        }
+
+        .progress-details {
+            font-size: 0.8rem;
+            color: #777;
+        }
+
+        .create-btn {
+            background-color: #1877f2;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            width: 100%;
+        }
+
+        .create-btn:disabled {
+            background-color: #e4e6eb;
+            color: #a0a0a0;
+            cursor: not-allowed;
+        }
+
+        /* Image Preview Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 3000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 900px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            right: 15px;
+            top: 5px;
+            z-index: 10;
+        }
+
+        .close-modal:hover,
+        .close-modal:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .preview-wrapper {
+            width: 100%;
+            /* 16:9 Aspect Ratio Hack */
+            padding-top: 56.25%;
+            position: relative;
+            background-color: #000;
+            /* Black background to help visualize edges if image doesn't fill (though ours will) */
+            border: 2px solid #333;
+        }
+
+        .preview-image-full {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            /* CRITICAL: Matches ffmpeg scale=1280:720 behavior */
+        }
+
+        .preview-title {
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        /* --- Dark Mode Styles --- */
+        body.dark-mode {
+            background-color: #0f172a;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .container {
+            background-color: #1e293b;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        body.dark-mode h2 {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode h2 span {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .drop-zone {
+            background-color: #0f172a;
+            border-color: #475569;
+        }
+
+        body.dark-mode .drop-zone p {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .form-group label {
+            color: #cbd5e1;
+        }
+
+        body.dark-mode .form-group input,
+        body.dark-mode .form-group textarea,
+        body.dark-mode .details-dropdown summary {
+            background-color: #334155;
+            border-color: #475569;
+            color: #fff;
+        }
+
+        body.dark-mode .connect-btn {
+            color: #60a5fa;
+        }
+
+        body.dark-mode #upgrade-btn {
+            color: #cbd5e1 !important;
+        }
+
+        body.dark-mode #management-btn {
+            color: #cbd5e1 !important;
+        }
+
+        body.dark-mode #add-account-btn {
+            color: #cbd5e1 !important;
+        }
+
+        body.dark-mode .dropdown-content {
+            background-color: #1e293b;
+            border-color: #475569;
+        }
+
+        body.dark-mode .dropdown-content button,
+        body.dark-mode .dropdown-content a {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .dropdown-content button:hover,
+        body.dark-mode .dropdown-content a:hover {
+            background-color: #334155;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <button type="button" id="upgrade-btn" class="connect-btn"
+            style="background: none; color: #4b5563; border: none; padding: 4px 6px; cursor: pointer; font-weight: 600; margin-right: 0; display: flex; align-items: center; gap: 3px;">
+            <i class="fas fa-crown" style="color: #f59e0b;"></i> Upgrade
+        </button>
+        <div class="dropdown">
+            <button type="button" id="management-btn" class="connect-btn"
+                style="background: none; color: #4b5563; padding: 4px 6px; border:none; cursor: pointer; display: flex; align-items: center; gap: 3px; margin-right: 0;">
+                <i class="fas fa-cog"></i> Management <i class="fas fa-chevron-down" style="font-size: 0.7rem;"></i>
+            </button>
+            <div id="management-dropdown" class="dropdown-content">
+                <button type="button" id="manage-channels-btn" style="display: none;"><i class="fas fa-list-ul"
+                        style="color: #4b5563;"></i> Manage Channels</button>
+                <button type="button" id="manage-cookies-btn"><i class="fas fa-cookie-bite" style="color: #ef4444;"></i>
+                    YouTube Cookies</button>
+                <button type="button" id="manage-tokens-btn"><i class="fas fa-key" style="color: #3b82f6;"></i> YouTube
+                    Tokens</button>
+                <button type="button" id="manage-channels-json-btn"><i class="fas fa-database"
+                        style="color: #10b981;"></i> youtube Channels </button>
+                <button type="button" id="manage-fb-creds-btn"><i class="fab fa-facebook-f" style="color: #1877f2;"></i>
+                    Facebook Credentials</button>
+            </div>
+        </div>
+
+        <div class="dropdown">
+            <button type="button" id="add-account-btn" class="connect-btn"
+                style="background: none; color: #4b5563; padding: 4px 6px; border:none; cursor: pointer; display: flex; align-items: center; gap: 3px;">
+                <i class="fas fa-plus-circle"></i> Add Account <i class="fas fa-chevron-down"
+                    style="font-size: 0.7rem;"></i>
+            </button>
+            <div id="add-account-dropdown" class="dropdown-content">
+                <a href="/auth/mp3toyt" id="connect-channel" class="dropdown-item">
+                    <i class="fab fa-youtube" style="color: #ff0000;"></i> YouTube Channel
+                </a>
+                <a href="/auth/facebook" class="dropdown-item">
+                    <i class="fab fa-facebook" style="color: #1877f2;"></i> Facebook Account
+                </a>
+            </div>
+        </div>
+        <button type="button" id="logout-btn-header" class="connect-btn"
+            style="background: none; color: #dc2626; padding: 4px 6px; border: none; cursor: pointer; font-weight: 600; margin-left: 0; display: flex; align-items: center; gap: 3px;">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+    </div>
+
+    <form id="upload-form" class="container">
+        <!-- ... existing form content ... -->
+        <div class="left-column">
+            <h2>1. Select an Audio File</h2>
+            <h2>2. Select an Image</h2>
+
+            <div id="drop-zone" class="drop-zone">
+                <p>Drag & Drop files here or</p>
+                <input type="file" id="file-upload" accept="audio/*,image/*" multiple style="display:none;">
+                <button type="button" id="upload-button" class="upload-btn"><i class="fas fa-upload"></i> Browse
+                    Files</button>
+            </div>
+
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="audio-url">Audio URL</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="audio-url" name="audioUrl" class="form-control" style="flex: 1;"
+                        placeholder="https://example.com/audio.mp3">
+                    <button type="button" id="paste-audio-button" style="padding: 10px 15px;" title="Paste"><i
+                            class="fas fa-paste"></i></button>
+                    <button type="button" id="add-audio-button" class="upload-btn"
+                        style="padding: 10px 15px; width: auto;" title="Add Audio"><i class="fas fa-plus"></i></button>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 10px;">
+                <label for="image-url">Image URL</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="image-url" name="imageUrl" class="form-control" style="flex: 1;"
+                        placeholder="https://example.com/image.jpg">
+                    <button type="button" id="paste-image-button" style="padding: 10px 15px;" title="Paste"><i
+                            class="fas fa-paste"></i></button>
+                </div>
+            </div>
+
+            <div id="audio-status" class="status-box">
+                <i class="fas fa-times-circle"></i> Audio not uploaded
+            </div>
+            <div id="image-status" class="status-box">
+                <i class="fas fa-times-circle"></i> Image not uploaded
+            </div>
+            <!-- Added click hint -->
+            <div id="image-preview-container" style="margin-top: 10px; text-align: center; cursor: pointer;"
+                title="Click to Preview 16:9 Output"></div>
+
+            <details class="details-dropdown">
+                <summary>Create background Image</summary>
+                <p>Options for generating a background will go here.</p>
+            </details>
+            <details class="details-dropdown">
+                <summary>Image from the ID3 Tag</summary>
+                <p>Options for extracting image from audio metadata.</p>
+            </details>
+        </div>
+
+        <div class="right-column">
+            <label style="display: block; margin-bottom: 5px;" id="channel-list-label">Select Account:</label>
+            <link rel="stylesheet" href="channel-styles.css">
+            <div id="channel-list" class="channel-grid">
+                <!-- Channels will be injected here as avatars -->
+            </div>
+            <!-- Hidden input to store selected channel ID for form submission -->
+            <input type="hidden" id="channelSelector" required>
+            <div class="form-group">
+                <label for="title">Title</label>
+                <input type="text" id="title" name="title">
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="tags">Tags</label>
+                <input type="text" id="tags" name="tags">
+                <small style="color: #777;">Separate tags with spaces or commas. Surround phrases with
+                    double-quotes</small>
+            </div>
+
+            <div class="form-group">
+                <div class="visibility-options">
+                    <button type="button" data-visibility="schedule">Schedule</button>
+                    <button type="button" class="active" data-visibility="public">Public</button>
+                    <button type="button" data-visibility="private">Private</button>
+                    <button type="button" data-visibility="unlisted">Unlisted</button>
+                </div>
+                <div id="schedule-container" style="display: none; margin-top: 10px;">
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 2;">
+                            <label for="schedule-date">Publish Date</label>
+                            <input type="date" id="schedule-date" name="scheduleDate" class="form-control">
+                            <small style="color: #777; font-size: 0.8rem; margin-top: 4px;">mm/dd/yyyy</small>
+                        </div>
+                        <div style="flex: 1;">
+                            <label for="schedule-time">Publish Time</label>
+                            <input type="time" id="schedule-time" name="scheduleTime" class="form-control">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <details class="details-dropdown">
+                <summary>Upload Options</summary>
+                <p>Additional upload options will go here.</p>
+            </details>
+
+            <a href="#" id="upgrade-text-link"
+                style="margin: 1rem 0; text-align: center; display: block; width: 100%;">Upgrade here to remove the
+                watermark, ads, and
+                access more settings!</a>
+
+            <div id="status-container">
+                <div id="final-status" class="final-status">
+                    Waiting for you to upload Audio and an Image.
+                </div>
+                <div id="job-progress" style="display: none;">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar"></div>
+                    </div>
+                    <div class="progress-details">
+                        <p><strong>Status:</strong> <span id="progress-status">Queued</span></p>
+                        <p id="progress-result" style="display: none;"></p>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" id="create-video-btn" class="create-btn" disabled>Create Video!</button>
+        </div>
+    </form>
+
+    <div id="notification-container"></div>
+
+    <!-- Image Editor Modal -->
+    <div id="imageEditorModal" class="modal">
+        <!-- POPUP IS THE VIDEO FRAME: Fixed 16:9 Window (Reverted) -->
+        <div class="modal-content"
+            style="max-width: 95vw; width: 1100px; max-height: 90vh; aspect-ratio: 16 / 9; padding: 0; background: #000; overflow: hidden; position: relative; border: 2px solid #555; box-shadow: 0 10px 40px rgba(0,0,0,0.8); border-radius: 8px;">
+
+            <!-- Editor Title Overlay -->
+            <div
+                style="position: absolute; top: 0; left: 0; right: 0; z-index: 10000; padding: 10px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: center; color: white;">
+                <h3 style="margin: 0; font-weight: 500; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Crop Image (16:9)</h3>
+                <span class="close-modal"
+                    style="font-size: 28px; cursor: pointer; background: rgba(0,0,0,0.5); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">&times;</span>
+            </div>
+
+            <!-- Video Window (Moving image behind this) -->
+            <div class="editor-wrapper" id="editor-wrapper"
+                style="width: 100%; height: 100%; background: #000; position: relative; overflow: visible; display: flex; justify-content: center; align-items: center;">
+
+                <!-- Viewport with hidden overflow for the image -->
+                <div id="image-viewport"
+                    style="width: 100%; height: 100%; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center;">
+                    <img id="editorImage" src="" style="max-width: 100%; max-height: 100%; display: block;">
+                </div>
+
+                <!-- STICKY DOTS: Outside hidden viewport but inside wrapper -->
+                <div class="sticky-dot" id="dot-tl"></div>
+                <div class="sticky-dot" id="dot-tr"></div>
+                <div class="sticky-dot" id="dot-bl"></div>
+                <div class="sticky-dot" id="dot-br"></div>
+            </div>
+
+            <!-- Overlay Toolbar (Bottom Left) -->
+            <div class="editor-toolbar"
+                style="position: absolute; bottom: 20px; left: 20px; z-index: 2000; display: flex; gap: 8px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 8px; backdrop-filter: blur(5px);">
+                <button type="button" class="tool-btn" data-action="zoom-in" title="Zoom In"><i
+                        class="fas fa-plus"></i></button>
+                <button type="button" class="tool-btn" data-action="zoom-out" title="Zoom Out"><i
+                        class="fas fa-minus"></i></button>
+                <button type="button" class="tool-btn" data-action="fit" title="Fit (Pudding)"
+                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px;">PUDDING</button>
+                <button type="button" class="tool-btn" data-action="stretch" title="Stretch"
+                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px;">STRETCH</button>
+                <button type="button" class="tool-btn" data-action="rotate-left" title="Rotate L"><i
+                        class="fas fa-undo"></i></button>
+                <button type="button" class="tool-btn" data-action="rotate-right" title="Rotate R"><i
+                        class="fas fa-redo"></i></button>
+                <button type="button" class="tool-btn" data-action="flip-h" title="Flip H"><i
+                        class="fas fa-arrows-alt-h"></i></button>
+                <button type="button" class="tool-btn" data-action="flip-v" title="Flip V"><i
+                        class="fas fa-arrows-alt-v"></i></button>
+                <button type="button" class="tool-btn" data-action="reset" title="Reset"><i
+                        class="fas fa-sync-alt"></i></button>
+                <div style="width: 1px; background: rgba(255,255,255,0.2); margin: 0 4px;"></div>
+                <button type="button" class="tool-btn" id="add-overlay-btn" title="Add Overlay"
+                    style="font-size: 0.75rem; font-weight: bold; width: auto; padding: 0 10px; background: #1677ff;">OVERLAY</button>
+                <input type="file" id="overlay-file-input" accept="image/*,video/*" style="display: none;">
+            </div>
+
+            <!-- Overlay Actions (Bottom Right) -->
+            <div style="position: absolute; bottom: 20px; right: 20px; z-index: 2000; display: flex; gap: 10px;">
+                <button id="cancel-edit-btn"
+                    style="padding: 10px 20px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; cursor: pointer; backdrop-filter: blur(5px);">Cancel</button>
+                <button id="save-crop-btn"
+                    style="padding: 10px 25px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(22,163,74,0.3);">Save
+                    & Apply</button>
+            </div>
+
+            <style>
+                .tool-btn {
+                    background: transparent;
+                    border: none;
+                    width: 36px;
+                    height: 36px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    cursor: pointer;
+                    border-radius: 4px;
+                    transition: all 0.2s;
+                    font-size: 1.1rem;
+                }
+
+                .tool-btn:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                }
+
+                /* STICKY DOTS: Glued to Image Corners & Ready for Zoom Interaction */
+                .sticky-dot {
+                    position: absolute;
+                    width: 18px;
+                    /* Slightly larger for easier grabbing */
+                    height: 18px;
+                    background: #ffeb3b;
+                    border: 2px solid #000;
+                    border-radius: 50%;
+                    z-index: 1000;
+                    cursor: nwse-resize;
+                    /* Interaction cue */
+                    transform: translate(-50%, -50%);
+                    display: none;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+                }
+
+                /* 16:9 Viewport Guide (Transparent) */
+                .cropper-view-box {
+                    outline: 1px solid rgba(255, 255, 255, 0.5) !important;
+                    outline-offset: -1px;
+                }
+
+                .cropper-face {
+                    background-color: transparent !important;
+                }
+
+                /* CLEAN WINDOW UI (No Darkness) */
+                .cropper-modal {
+                    opacity: 0 !important;
+                }
+
+                .cropper-container {
+                    position: absolute !important;
+                    top: 0;
+                    left: 0;
+                    width: 100% !important;
+                    height: 100% !important;
+                }
+
+                .cropper-line,
+                .cropper-point {
+                    display: none !important;
+                }
+
+                .cropper-view-box,
+                .cropper-face {
+                    outline: 1px solid rgba(255, 255, 255, 0.2) !important;
+                    background-color: transparent !important;
+                }
+
+                .cropper-crop-box {
+                    pointer-events: none !important;
+                }
+
+                .cropper-drag-box {
+                    pointer-events: auto !important;
+                    background: transparent !important;
+                    opacity: 0 !important;
+                }
+
+                /* TRUE STRETCH: Force distortion when mode is active */
+                .is-stretching .cropper-canvas img,
+                .is-stretching .cropper-view-box img {
+                    object-fit: fill !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    transform: none !important;
+                    /* Force distort over Cropper scaling */
+                }
+
+                .is-stretching .cropper-view-box {
+                    outline: 2px solid #ffeb3b !important;
+                    z-index: 1001;
+                }
+
+                /* Ensure dots are ALWAYS top-most */
+                .sticky-dot {
+                    z-index: 9999 !important;
+                }
+
+                .cropper-container {
+                    z-index: 100 !important;
+                }
+            </style>
+        </div>
+    </div>
+
+    <!-- YouTube Cookies Modal -->
+    <div id="cookiesModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-cookies-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-cookie-bite"></i> YouTube Browser Cookies</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+                Paste your YouTube cookies here (Netscape format).
+                <br><small>Tip: Use extensions like "Get cookies.txt LOCALLY" to export them from your browser.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="cookies-editor"
+                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
+                    placeholder="# Netscape HTTP Cookie File..."></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-cookies-btn"
+                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button type="button" id="save-cookies-btn"
+                    style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
+                    Cookies</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Tokens Modal -->
+    <div id="tokensModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-tokens-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #1877f2;"><i class="fas fa-key"></i> YouTube API Tokens</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+                Edit <code>tokens.json</code> directly.
+                <br><small>Warning: Incorrect values may disconnect your channels.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="tokens-editor"
+                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
+                    placeholder="[...]"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-tokens-btn"
+                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button type="button" id="save-tokens-btn"
+                    style="padding: 10px 25px; background: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
+                    Tokens</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- youtube channels Modal -->
+    <div id="channelsJSONModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-channels-json-modal">&times;</span>
+            <h2 style="margin-top: 0; color: #10b981;"><i class="fas fa-database"></i> Channels JSON Data</h2>
+            <p style="font-size: 0.9rem; color: #666; margin-bottom: 15px;">
+                Edit <code>channels.json</code> directly.
+                <br><small>Note: This affects how channels are listed in the UI.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="channels-json-editor"
+                    style="min-height: 300px; font-family: monospace; font-size: 0.85rem; background: #fafafa; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 6px;"
+                    placeholder='{"channels":[]}'></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button type="button" id="cancel-channels-json-btn"
+                    style="padding: 10px 20px; background: #e4e6eb; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                <button type="button" id="save-channels-json-btn"
+                    style="padding: 10px 25px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save
+                    Channels</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script src="/scripts/mp3toyt.js?v=187"></script>
+    <!-- Facebook Credentials Modal -->
+    <div id="fbCredsModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-fb-creds-modal">&times;</span>
+            <h2 style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <i class="fab fa-facebook" style="color: #1877f2;"></i> Facebook App Credentials
+            </h2>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Enter your Facebook App ID and App Secret in JSON format.
+            </p>
+            <textarea id="fb-creds-editor" spellcheck="false"
+                placeholder='{ "appId": "...", "appSecret": "..." }'></textarea>
+            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" id="cancel-fb-creds-btn" class="connect-btn"
+                    style="background: #e4e6eb; color: #050505;">Cancel</button>
+                <button type="button" id="save-fb-creds-btn" class="connect-btn" style="background: #1877f2;">Save
+                    Credentials</button>
+            </div>
+        </div>
+    </div>
+    <!-- Pricing Modal -->
+    <div id="pricingModal" class="modal" style="display: none; padding: 0;">
+        <div class="modal-content"
+            style="width: 900px; max-width: 95vw; height: 1200px; max-height: 95vh; padding: 0; background: #000; overflow: hidden; position: relative; border-radius: 40px; border: 1px solid rgba(255,255,255,0.1);">
+            <span class="close-modal" id="close-pricing-modal"
+                style="color: #fff; right: 25px; top: 15px; z-index: 10000; position: absolute; font-size: 35px;">&times;</span>
+            <iframe src="pricing.html" style="width: 100%; height: 100%; border: none;"></iframe>
+        </div>
+    </div>
+    <!-- Support Modal -->
+    <div id="supportModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; padding: 30px; text-align: center;">
+            <span class="close-modal" id="close-support-modal">&times;</span>
+            <div style="font-size: 3rem; color: #1877f2; margin-bottom: 20px;">
+                <i class="fas fa-headset"></i>
+            </div>
+            <h2 style="margin-top: 0; margin-bottom: 10px;">Need Help?</h2>
+            <p style="color: #666; font-size: 1rem; margin-bottom: 25px;">
+                We're here to assist you with any issues or questions.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <a href="mailto:support@mp3toyt.com" class="connect-btn"
+                    style="background: #1877f2; color: white; padding: 12px; border-radius: 8px; justify-content: center; margin: 0; font-size: 1rem;">
+                    <i class="fas fa-envelope"></i> Support Email
+                </a>
+                <a href="#" class="connect-btn"
+                    style="background: #10b981; color: white; padding: 12px; border-radius: 8px; justify-content: center; margin: 0; font-size: 1rem;">
+                    <i class="fas fa-comments"></i> Live Support
+                </a>
+                <a href="#" class="connect-btn"
+                    style="background: #5865F2; color: white; padding: 12px; border-radius: 8px; justify-content: center; margin: 0; font-size: 1rem;">
+                    <i class="fab fa-discord"></i> Join Discord
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Support Button (Floating) -->
+    <button id="support-btn" title="Contact Support"
+        style="position: fixed; bottom: 90px; right: 30px; width: 50px; height: 50px; border-radius: 50%; background: #ffffff; color: #1877f2; border: 1px solid #e0e0e0; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; z-index: 9999; transition: transform 0.2s;">
+        <i class="fas fa-headset"></i>
+    </button>
+
+    <script>
+        // Support Modal Logic
+        const supportBtn = document.getElementById('support-btn');
+        const supportModal = document.getElementById('supportModal');
+        const closeSupport = document.getElementById('close-support-modal');
+
+        supportBtn.onclick = () => {
+            supportModal.style.display = 'flex';
+            supportBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => supportBtn.style.transform = 'scale(1)', 200);
+        }
+        closeSupport.onclick = () => supportModal.style.display = 'none';
+
+        // Close on outside click
+        window.addEventListener('click', (e) => {
+            if (e.target == supportModal) supportModal.style.display = 'none';
+        });
+    </script>
+
+    <button id="dark-mode-toggle" title="Toggle Dark Mode"
+        style="position: fixed; bottom: 30px; right: 30px; width: 50px; height: 50px; border-radius: 50%; background: #3b82f6; color: white; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; z-index: 9999; transition: transform 0.2s;">
+        <i class="fas fa-moon"></i>
+    </button>
+    <script>
+        // Dark Mode Logic
+        const toggleBtn = document.getElementById('dark-mode-toggle');
+        const icon = toggleBtn.querySelector('i');
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+
+            // Update Icon
+            if (isDark) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+
+            // Save preference
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+            // Animation effect
+            toggleBtn.style.transform = 'scale(0.9)';
+            setTimeout(() => toggleBtn.style.transform = 'scale(1)', 200);
+        });
+    </script>
+</body>
+
+</html>

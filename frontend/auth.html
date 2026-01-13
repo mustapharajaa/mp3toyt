@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MP3toYT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #1877f2;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.8rem;
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 0.5rem;
+        }
+
+        button:hover {
+            background-color: #166fe5;
+        }
+
+        .switch-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .switch-link a {
+            color: #1877f2;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .error {
+            color: #dc2626;
+            background-color: #fee2e2;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            display: none;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div id="login-form">
+            <h2>Welcome Back</h2>
+            <div id="login-error" class="error"></div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required autocomplete="current-password">
+                </div>
+                <button type="submit" id="login-btn">Login</button>
+            </form>
+            <div class="switch-link">
+                Don't have an account? <a onclick="toggleForms()">Sign up</a>
+            </div>
+        </div>
+
+        <div id="register-form" class="hidden">
+            <h2>Create Account</h2>
+            <div id="register-error" class="error"></div>
+            <form onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="reg-username">Username</label>
+                    <input type="text" id="reg-username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" required autocomplete="new-password">
+                </div>
+                <button type="submit" id="reg-btn">Sign Up</button>
+            </form>
+            <div class="switch-link">
+                Already have an account? <a onclick="toggleForms()">Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="/scripts/auth.js"></script>
+</body>
+
+</html>
