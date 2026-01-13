@@ -169,18 +169,14 @@ Write-Host "Routing domain $domainOnly to tunnel..." -ForegroundColor Yellow
 # Force the route (will fail if DNS record exists, which is handled by instructions)
 cloudflared tunnel route dns -f mp3-tunnel $domainOnly
 
-# Start Tunnel with PM2
-Write-Host 'Starting Cloudflare Tunnel background process...' -ForegroundColor Cyan
+# Start Tunnel with PM2 (LEGACY MODE)
+Write-Host 'Starting Cloudflare Tunnel...' -ForegroundColor Cyan
 pm2 stop cf-tunnel 2>$null | Out-Null
 pm2 delete cf-tunnel 2>$null | Out-Null
 
-# Detect absolute path to cloudflared
-$cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
-if (-not $cfPath) { $cfPath = 'cloudflared' }
-
-# CORRECT SYNTAX: pass the executable as the script, and the REST as args after '--'
-# This tells PM2: "Run this .exe file, and give it these arguments"
-pm2 start $cfPath --name cf-tunnel -- tunnel run mp3-tunnel
+# Using the classic global --url command which is simpler and more reliable for quick setups
+# We pass it as a single quoted string which PM2 handles better for this specific command style
+pm2 start "cloudflared tunnel --url http://localhost:8000" --name cf-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
