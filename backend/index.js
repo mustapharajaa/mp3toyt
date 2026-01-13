@@ -200,6 +200,7 @@ async function getYoutubeMetadata(link) {
         '--no-playlist',
         '--print', '%(title)s',
         '--print', '%(description)s',
+        '--js-runtimes', 'node',
         link
     ];
 
@@ -237,6 +238,7 @@ async function getYoutubeMetadata(link) {
 
 // Helper function for robust image downloading (Main App & Automation)
 async function downloadImage(url, imagePath, username, sessionId) {
+    let targetUrl = url;
 
     // Detect YouTube URL and extract thumbnail
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
@@ -252,7 +254,7 @@ async function downloadImage(url, imagePath, username, sessionId) {
         } else {
             console.log(`[Thumbnail] Fast Path Failed, falling back to yt-dlp...`);
             targetUrl = await new Promise((resolve, reject) => {
-                const args = ['--get-thumbnail', url];
+                const args = ['--get-thumbnail', url, '--js-runtimes', 'node'];
                 if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
                     args.push('--cookies', YOUTUBE_COOKIES_PATH);
                 }
@@ -306,6 +308,7 @@ async function downloadAudio(link, audioPath, format = 'best', onProgress = null
         '-x',
         '--audio-format', format,
         '--output', audioPath,
+        '--js-runtimes', 'node', // Added for YouTube challenge solving (EJS)
         link
     ];
 

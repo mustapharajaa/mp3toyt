@@ -140,6 +140,9 @@ if (-not (Test-Path $facebookCredentialsFile)) {
     [System.IO.File]::WriteAllText($facebookCredentialsFile, "{}")
 }
 
+$thumbnailsDir = Join-Path $PSScriptRoot "temp\thumbnails"
+if (-not (Test-Path $thumbnailsDir)) { New-Item -ItemType Directory -Path $thumbnailsDir | Out-Null }
+
 $credentialsFile = Join-Path $PSScriptRoot "credentials.json"
 if (-not (Test-Path $credentialsFile)) { 
     [System.IO.File]::WriteAllText($credentialsFile, "{}")
