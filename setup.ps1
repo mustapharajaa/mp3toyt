@@ -136,4 +136,18 @@ $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";"
 Write-Host "Running npm install..." -ForegroundColor Cyan
 npm install
 
-Write-Host "`nYou can now run 'npm start' to launch the application!" -ForegroundColor White
+# Start Application with PM2
+Write-Host "`nStarting application with PM2..." -ForegroundColor Cyan
+pm2 delete mp3toyt 2>$null | Out-Null
+pm2 start backend/server.js --name mp3toyt
+pm2 save
+
+Write-Host "`n-----------------------------------" -ForegroundColor Cyan
+Write-Host "🚀 PRODUCTION READY!" -ForegroundColor Green
+Write-Host "1. Your app is running in the background via PM2."
+Write-Host "2. LOGIN REQUIRED: Opening Cloudflare login in your browser..."
+Write-Host "-----------------------------------" -ForegroundColor Cyan
+
+cloudflared tunnel login
+
+Write-Host "`nSetup complete!" -ForegroundColor White

@@ -103,7 +103,22 @@ python3 --version
 echo "-----------------------------------"
 
 echo "Setup complete! Your .env file has been updated."
+# Run npm install
 echo "Running npm install..."
 npm install
 
-echo "You can now run 'npm start' to launch the application!"
+# Start Application with PM2
+echo "Starting application with PM2..."
+pm2 delete mp3toyt 2>/dev/null || true
+pm2 start backend/server.js --name mp3toyt
+pm2 save
+
+echo "-----------------------------------"
+echo "🚀 PRODUCTION READY!"
+echo "1. Your app is running in the background via PM2."
+echo "2. LOGIN REQUIRED: Opening Cloudflare login in your browser..."
+echo "-----------------------------------"
+
+cloudflared tunnel login
+
+echo "Setup complete!"
