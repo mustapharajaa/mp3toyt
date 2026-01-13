@@ -32,6 +32,7 @@ app.use(session({
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/temp', express.static(path.join(__dirname, '../temp')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/logos', express.static(path.join(__dirname, '../logos')));
 
 // Use the API router from index.js
 // This maps endpoints like /channels, /upload-file, etc.

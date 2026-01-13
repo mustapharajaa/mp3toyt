@@ -299,37 +299,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (files.length === 0) return;
 
-        const formData = new FormData(); formData.append('sessionId', sessionId);
-        let hasAudio = false, hasImage = false;
         for (const file of files) {
-            if (file.type.startsWith('audio/')) { formData.append('file', file); formData.append('fileType', 'audio'); hasAudio = true; }
-            else if (file.type.startsWith('image/')) { formData.append('file', file); formData.append('fileType', 'image'); hasImage = true; }
-        }
+            const isAudio = file.type.startsWith('audio/');
+            const isImage = file.type.startsWith('image/');
+            if (!isAudio && !isImage) continue;
 
-        if (hasAudio) setStatus(audioStatus, 'loading', 'Uploading Audio...');
-        if (hasImage) setStatus(imageStatus, 'loading', 'Uploading Image...');
+            const formData = new FormData();
+            formData.append('sessionId', sessionId);
+            formData.append('file', file);
+            formData.append('fileType', isAudio ? 'audio' : 'image');
 
-        try {
-            const res = await fetch('/upload-file', { method: 'POST', body: formData });
+            if (isAudio) setStatus(audioStatus, 'loading', 'Uploading Audio...');
+            else setStatus(imageStatus, 'loading', 'Uploading Image...');
 
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server responded with ${res.status}`);
+            try {
+                const res = await fetch('/upload-file', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Server responded with ${res.status}`);
+                }
+
+                const result = await res.json();
+                if (result.success) {
+                    if (isAudio) {
+                        updateAudioStatus(state.audioCount + 1, result.totalDuration);
+                    } else {
+                        state.imageReady = true;
+                        setStatus(imageStatus, 'success', 'Image Uploaded', () => resetImage());
+                        document.getElementById('image-preview-container').innerHTML = `<img src="${result.filePath}?t=${Date.now()}" style="max-height: 200px;">`;
+                    }
+                    updateCreateButton();
+                } else {
+                    throw new Error(result.message || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                if (isAudio) setStatus(audioStatus, 'error', `Upload failed: ${error.message}`);
+                else setStatus(imageStatus, 'error', `Upload failed: ${error.message}`);
+                showNotification(error.message, 'error');
             }
-
-            const result = await res.json();
-            if (result.success) {
-                if (hasAudio) { updateAudioStatus(state.audioCount + 1, result.totalDuration); }
-                if (hasImage) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Uploaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="/temp/${sessionId}/image.jpg?t=${Date.now()}" style="max-height: 200px;">`; }
-                updateCreateButton();
-            } else {
-                throw new Error(result.message || 'Upload failed');
-            }
-        } catch (error) {
-            console.error('Upload error:', error);
-            if (hasAudio) setStatus(audioStatus, 'error', `Upload failed: ${error.message}`);
-            if (hasImage) setStatus(imageStatus, 'error', `Upload failed: ${error.message}`);
-            showNotification(error.message, 'error');
         }
     }
 
@@ -349,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatus(imageStatus, 'loading', 'Downloading...');
         const res = await fetch('/download-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId }) });
         const result = await res.json();
-        if (result.success) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Downloaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="/temp/${sessionId}/image.jpg?t=${Date.now()}" style="max-height: 200px;">`; updateCreateButton(); }
+        if (result.success) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Downloaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="${result.filePath}?t=${Date.now()}" style="max-height: 200px;">`; updateCreateButton(); }
     }
 
     imageUrlInput.addEventListener('change', (e) => handleImageUrl(e.target.value));

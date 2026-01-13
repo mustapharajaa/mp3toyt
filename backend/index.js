@@ -47,7 +47,13 @@ router.use(express.json());
 // --- Multer Configuration ---
 const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
+const LOGOS_DIR = path.join(__dirname, '../logos');
 const upload = multer();
+
+// Ensure Directories Exist
+fs.ensureDirSync(UPLOADS_BASE_DIR);
+fs.ensureDirSync(TEMP_BASE_DIR);
+fs.ensureDirSync(LOGOS_DIR);
 
 // --- API Endpoints ---
 
@@ -269,7 +275,10 @@ router.post('/download-image', async (req, res) => {
             writer.on('error', reject);
         });
 
-        res.json({ success: true, filePath: imagePath });
+        res.json({
+            success: true,
+            filePath: `/temp/${username}/${sessionId}/image.jpg`
+        });
     } catch (error) {
         console.error('[Image Download Error]', error);
         res.status(500).json({ success: false, message: 'Failed to download image from URL.' });
@@ -309,7 +318,8 @@ router.post('/upload-file', (req, res) => {
                 const extension = path.extname(file.originalFilename || 'overlay.mp4');
                 destFilename = `overlay_${Date.now()}${extension}`;
             } else {
-                destFilename = 'image.jpg';
+                const extension = path.extname(file.originalFilename || 'image.jpg');
+                destFilename = `image${extension}`;
             }
             const destPath = path.join(sessionDir, destFilename);
 
@@ -328,7 +338,8 @@ router.post('/upload-file', (req, res) => {
             res.json({
                 success: true,
                 message: 'File uploaded successfully.',
-                filePath: `/temp/${username}/${sessionId}/${destFilename}`, // Assuming we serve /temp correctly (might need to update static serve)
+                filePath: `/temp/${username}/${sessionId}/${destFilename}`,
+                fileType: fileType, // Useful for frontend to know which status to update
                 totalDuration: totalDurationFormatted
             });
         } catch (error) {
@@ -357,7 +368,7 @@ router.post('/remove-file', async (req, res) => {
         if (type === 'audio') {
             filePattern = /^(audio_|audio\.).*\.(opus|mp3|m4a|wav|webm)$/;
         } else if (type === 'image') {
-            filePattern = /^image\.jpg$/;
+            filePattern = /^image\..*$/;
         } else {
             return res.status(400).json({ success: false, message: 'Invalid file type.' });
         }
@@ -380,23 +391,66 @@ router.post('/remove-file', async (req, res) => {
 
 router.get('/channels', async (req, res) => {
     try {
+        const username = req.session && req.session.username ? req.session.username : null;
+        if (!username) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
         let allChannels = [];
 
         // YouTube Channels
         if (await fs.pathExists(CHANNELS_PATH)) {
             const data = await fs.readJson(CHANNELS_PATH);
-            const ytChannels = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : []);
-            allChannels = ytChannels.map(c => ({ ...c, platform: 'youtube' }));
+            const ytChannelsRaw = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : []);
+
+            // Filter by user
+            const userYtChannels = ytChannelsRaw.filter(c => c.username === username || !c.username); // Fallback for old data
+
+            // Non-blocking Caching logic
+            const processedYtChannels = await Promise.all(userYtChannels.map(async c => {
+                const logoName = `${c.platform || 'youtube'}_${c.channelId}.jpg`;
+                const localLogoPath = path.join(LOGOS_DIR, logoName);
+                const localLogoUrl = `/logos/${logoName}`;
+
+                const isCached = await fs.pathExists(localLogoPath);
+
+                if (c.thumbnail && !isCached) {
+                    // Start download in background, don't await it
+                    (async () => {
+                        try {
+                            const response = await axios({ url: c.thumbnail, responseType: 'stream', timeout: 5000 });
+                            const writer = fs.createWriteStream(localLogoPath);
+                            response.data.pipe(writer);
+                            await new Promise((resolve, reject) => {
+                                writer.on('finish', resolve);
+                                writer.on('error', reject);
+                            });
+                        } catch (err) {
+                            console.error(`[LogoCache] Background cache failed for ${c.channelId}:`, err.message);
+                        }
+                    })();
+                }
+
+                return {
+                    ...c,
+                    thumbnail: isCached ? localLogoUrl : c.thumbnail,
+                    platform: 'youtube'
+                };
+            }));
+
+            allChannels = processedYtChannels;
         }
 
         // Facebook Accounts/Pages
         if (await fs.pathExists(FACEBOOK_TOKENS_PATH)) {
             const data = await fs.readJson(FACEBOOK_TOKENS_PATH);
-            const fbTokens = Array.isArray(data) ? data : (data && Array.isArray(data.tokens) ? data.tokens : []);
-            const fbChannels = fbTokens.map(fb => ({
+            const fbTokensRaw = Array.isArray(data) ? data : (data && Array.isArray(data.tokens) ? data.tokens : []);
+
+            // Filter by user
+            const userFbTokens = fbTokensRaw.filter(t => t.username === username);
+
+            const fbChannels = userFbTokens.map(fb => ({
                 channelId: fb.accountId,
                 channelTitle: fb.accountTitle,
-                thumbnail: 'https://www.facebook.com/favicon.ico', // Placeholder for now
+                thumbnail: 'https://www.facebook.com/favicon.ico', // Placeholder
                 platform: 'facebook'
             }));
             allChannels = [...allChannels, ...fbChannels];
@@ -412,9 +466,8 @@ router.get('/channels', async (req, res) => {
 // Define and ensure directories exist
 const UPLOADS_DIR = UPLOADS_BASE_DIR;
 const VIDEOS_DIR = UPLOADS_DIR;
-fs.ensureDirSync(UPLOADS_DIR);
-fs.ensureDirSync(TEMP_BASE_DIR);
-// fs.ensureDirSync(VIDEOS_DIR); // Redundant now
+// fs.ensureDirSync(UPLOADS_DIR); // Moved up
+// fs.ensureDirSync(TEMP_BASE_DIR); // Moved up
 
 // --- Job Queue for Video Processing ---
 const videoQueue = [];
@@ -815,14 +868,19 @@ router.get('/session-status', async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
-
         let audioFiles = [];
         let imageExists = false;
+        let foundImageFilename = null;
 
         if (await fs.pathExists(sessionDir)) {
             const files = await fs.readdir(sessionDir);
             audioFiles = files.filter(f => /^(audio_|audio\.).*\.(opus|mp3|m4a|wav|webm)$/.test(f));
-            imageExists = files.includes('image.jpg');
+            // Find the image file (could be any extension)
+            const imageFile = files.find(f => f.startsWith('image.'));
+            if (imageFile) {
+                imageExists = true;
+                foundImageFilename = imageFile;
+            }
         }
 
         let totalDurationFormatted = null;
@@ -840,7 +898,7 @@ router.get('/session-status', async (req, res) => {
             totalDuration: totalDurationFormatted,
             totalDuration: totalDurationFormatted,
             image: imageExists,
-            imageUrl: imageExists ? `/temp/${username}/${sessionId}/image.jpg` : null
+            imageUrl: imageExists ? `/temp/${username}/${sessionId}/${foundImageFilename}` : null
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error checking session status.' });

@@ -132,14 +132,15 @@
             </div>
 
             <div class="mt-8 text-center flex-grow flex flex-col">
-                <h2 class="text-3xl font-bold mb-2 text-gray-100">Free, forever</h2>
-                <p class="text-gray-500 mb-8 text-sm md:text-base leading-relaxed">The original Chrome extension</p>
+                <h2 class="text-3xl font-bold mb-2 text-gray-100">Basic</h2>
+                <p id="basic-desc" class="text-gray-500 mb-8 text-sm md:text-base leading-relaxed">Paid yearly. Cancel
+                    anytime.</p>
 
-                <div class="text-3xl font-bold mb-8">$0</div>
+                <div id="basic-price-title" class="text-3xl font-bold mb-8">$4/mo</div>
 
                 <button
                     class="w-full py-4 px-6 rounded-full font-bold text-lg mb-8 transition-all active:scale-[0.98] bg-[#1a1a1a] border border-white/10 hover:bg-[#252525] text-white">
-                    Get the free extension
+                    Subscribe
                 </button>
 
                 <div class="w-full h-px bg-white/5 mb-8"></div>
@@ -206,13 +207,14 @@
             </div>
 
             <div class="mt-8 text-center flex-grow flex flex-col">
-                <h2 id="pro-price-title" class="text-3xl font-bold mb-2 text-white">$8/mo</h2>
+                <h2 class="text-3xl font-bold mb-2 text-white">Pro</h2>
+                <div id="pro-price-title" class="text-3xl font-bold mb-2 text-white">$8/mo</div>
                 <p id="pro-price-subtitle" class="text-gray-500 mb-8 text-sm md:text-base leading-relaxed">$96 paid
                     yearly. Cancel anytime.</p>
 
                 <button
                     class="w-full py-4 px-6 rounded-full font-bold text-lg mb-8 transition-all active:scale-[0.98] bg-white text-black hover:bg-gray-200">
-                    Try Pro free for 7 days
+                    Subscribe
                 </button>
 
                 <div class="w-full h-px bg-white/5 mb-8"></div>
@@ -275,6 +277,8 @@
             const callout = document.getElementById('callout');
             const proTitle = document.getElementById('pro-price-title');
             const proSubtitle = document.getElementById('pro-price-subtitle');
+            const basicTitle = document.getElementById('basic-price-title');
+            const basicDesc = document.getElementById('basic-desc');
 
             if (cycle === 'monthly') {
                 pill.style.transform = 'translateX(0)';
@@ -285,6 +289,8 @@
                 callout.style.opacity = '0';
                 proTitle.textContent = '$12/mo';
                 proSubtitle.textContent = '$12 paid monthly. Cancel anytime.';
+                basicTitle.textContent = '$6/mo';
+                basicDesc.textContent = 'Paid monthly. Cancel anytime.';
             } else {
                 pill.style.transform = 'translateX(calc(100%))';
                 btnYearly.classList.remove('text-gray-500');
@@ -294,6 +300,8 @@
                 callout.style.opacity = '1';
                 proTitle.textContent = '$8/mo';
                 proSubtitle.textContent = '$96 paid yearly. Cancel anytime.';
+                basicTitle.textContent = '$4/mo';
+                basicDesc.textContent = 'Paid yearly. Cancel anytime.';
             }
         }
     </script>
