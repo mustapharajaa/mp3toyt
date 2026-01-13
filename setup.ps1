@@ -178,9 +178,9 @@ pm2 delete cf-tunnel 2>$null | Out-Null
 $cfPath = (Get-Command cloudflared.exe -ErrorAction SilentlyContinue).Source
 if (-not $cfPath) { $cfPath = 'cloudflared' }
 
-# IMPORTANT: Windows PM2 requires the full command to be a single argument if using an executable
-$pm2Cmd = "$cfPath tunnel run mp3-tunnel"
-pm2 start "$pm2Cmd" --name cf-tunnel
+# CORRECT SYNTAX: pass the executable as the script, and the REST as args after '--'
+# This tells PM2: "Run this .exe file, and give it these arguments"
+pm2 start $cfPath --name cf-tunnel -- tunnel run mp3-tunnel
 pm2 save
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
