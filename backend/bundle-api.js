@@ -187,8 +187,9 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
                 });
             }
 
-            // If no activity found, treat as very old (1ms)
-            if (lastPlatformActive === 0) lastPlatformActive = 1;
+            // If no activity found, it means it was likely just connected but Sync hasn't run yet.
+            // Treat as "Just Active" (now) to protect it from premature displacement.
+            if (lastPlatformActive === 0) lastPlatformActive = Date.now();
 
             if (lastPlatformActive < oldestTime) {
                 oldestTime = lastPlatformActive;
