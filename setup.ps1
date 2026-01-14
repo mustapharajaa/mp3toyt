@@ -187,7 +187,6 @@ if (-not (Test-Path $certPath)) {
 }
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
-Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
 $tunnelName = "mp3-tunnel"
 
 # More robust check: Does the specific tunnel name exist on this machine?
