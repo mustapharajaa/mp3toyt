@@ -144,4 +144,8 @@ async function deleteChannel(channelId) {
     await fs.writeFile(CHANNELS_FILE, JSON.stringify({ channels: filteredChannels }, null, 2));
 }
 
-export { getChannelsForUser, saveChannel, saveMp3toytChannel, addChannel, deleteChannel };
+async function getAllChannelsRaw() {
+    return await readChannels();
+}
+
+export { getChannelsForUser, saveChannel, saveMp3toytChannel, addChannel, deleteChannel, getAllChannelsRaw };

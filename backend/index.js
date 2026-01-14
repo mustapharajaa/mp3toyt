@@ -1509,23 +1509,32 @@ router.get('/auth/facebook', async (req, res) => {
 });
 
 // Utility to claim channels from Bundle.social for the current user
-async function claimBundleChannels(username) {
+async function claimBundleChannels(username, targetInstanceId = null) {
     if (!username || username === 'guest') return [];
     try {
-        console.log(`[Bundle Claim] Claiming fresh channels for user: ${username}`);
+        console.log(`[Bundle Claim] Claiming ${targetInstanceId !== null ? 'Targeted' : 'Fresh'} channels for user: ${username}`);
 
-        // 1. Clear existing bundle-linked channels for this user to avoid stale mappings
-        const existing = await mp3toytChannels.getChannelsForUser(username);
-        for (const ch of existing) {
-            if (ch.socialAccountId) {
-                console.log(`[Bundle Claim] Clearing stale mapping for ${ch.channelTitle}`);
-                await mp3toytChannels.deleteChannel(ch.channelId);
-            }
-        }
+        // 1. Fetch channel data from Bundle (Targeted or Global)
+        const bundleChannels = await bundleApi.getConnectedChannels(targetInstanceId);
 
-        const bundleChannels = await bundleApi.getConnectedChannels();
+        // 2. Fetch all local channels to detect conflicts across users
+        const allLocalChannels = await mp3toytChannels.getAllChannelsRaw();
         const claimedIds = [];
+
         for (const ch of bundleChannels) {
+            // CONFLICT DETECTION: Is this channel connected to a DIFFERENT API Key elsewhere?
+            const conflict = allLocalChannels.find(lc =>
+                lc.channelId === ch.channelId &&
+                lc.bundleInstanceId !== ch.bundleInstanceId
+            );
+
+            if (conflict) {
+                console.log(`[Bundle Claim] Conflict detected! Channel ${ch.channelTitle} already exists on Key ${conflict.bundleInstanceId}. Disconnecting old instance...`);
+                // Disconnect the OLD key without scanning it (Purely Local Intelligence)
+                await bundleApi.disconnectPlatform(conflict.bundleInstanceId, ch.platform);
+            }
+
+            // Save/Update the channel for this user
             await mp3toytChannels.saveChannel({
                 channelId: ch.channelId,
                 channelTitle: ch.channelTitle,
@@ -1536,6 +1545,7 @@ async function claimBundleChannels(username) {
             }, username);
             claimedIds.push(ch.channelId);
         }
+
         console.log(`[Bundle Claim] Successfully claimed ${bundleChannels.length} channels for user: ${username}`);
         return claimedIds;
     } catch (err) {
@@ -1547,11 +1557,12 @@ async function claimBundleChannels(username) {
 router.get('/auth/facebook/callback', async (req, res) => {
     // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
     const username = req.session && req.session.username ? req.session.username : 'guest';
+    const { inst } = req.query;
 
-    // Attempt to claim any new channels
+    // Attempt to claim any new channels (Targeted if inst provided)
     let newChannelId = '';
     if (username !== 'guest') {
-        const claimed = await claimBundleChannels(username);
+        const claimed = await claimBundleChannels(username, inst);
         if (claimed.length > 0) newChannelId = claimed[0];
     }
 
@@ -1582,9 +1593,10 @@ router.get('/auth/facebook/callback', async (req, res) => {
 
 router.get('/auth/youtube/callback', async (req, res) => {
     const username = req.session && req.session.username ? req.session.username : 'guest';
+    const { inst } = req.query;
     let newChannelId = '';
     if (username !== 'guest') {
-        const claimed = await claimBundleChannels(username);
+        const claimed = await claimBundleChannels(username, inst);
         if (claimed.length > 0) newChannelId = claimed[0];
     }
     res.send(`

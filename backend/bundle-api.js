@@ -172,7 +172,11 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
     for (const idx of availableIndices) {
         const inst = instances[idx];
         try {
-            const url = await getConnectUrl(inst, redirectUrl, type);
+            // Append inst=idx to the redirectUrl so the callback knows which one we used
+            const separator = redirectUrl.includes('?') ? '&' : '?';
+            const targetedRedirectUrl = `${redirectUrl}${separator}inst=${idx}`;
+
+            const url = await getConnectUrl(inst, targetedRedirectUrl, type);
             if (url) return url;
         } catch (error) {
             // Check if it's the "Already Connected" error (Status 400)
@@ -208,13 +212,19 @@ async function getConnectUrl(instance, redirectUrl, type) {
     return null;
 }
 
-export async function getConnectedChannels() {
+export async function getConnectedChannels(targetInstanceId = null) {
     // This is tricky: we need to check ALL keys to see which ones now have accounts
     // and update our usage tracking.
     await ensureUsageLoaded();
+    let allChannels = [];
+
+    const scanInstances = targetInstanceId !== null
+        ? instances.filter(i => i.id === parseInt(targetInstanceId))
+        : instances;
+
     const seenAccountIds = {}; // Tracks { accountId: instanceId } to find duplicates
 
-    for (const inst of instances) {
+    for (const inst of scanInstances) {
         try {
             const teamId = await getTeamId(inst);
             if (!teamId) continue;
