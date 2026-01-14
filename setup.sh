@@ -170,6 +170,10 @@ echo "-----------------------------------"
 echo "🚀 PRODUCTION READY!"
 echo "1. Your app is running in the background via PM2."
 echo "2. Your domain $DOMAIN_ONLY is now linked to this server!"
+echo ""
+echo "If you need to run it manually or verify, use these commands:"
+echo "   cloudflared tunnel route dns -f $TUNNEL_NAME $DOMAIN_ONLY"
+echo "   cloudflared tunnel run --url http://localhost:8000 $TUNNEL_NAME"
 echo "-----------------------------------"
 
 # Best effort to open browser on Linux

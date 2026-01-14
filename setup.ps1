@@ -234,7 +234,9 @@ Write-Host 'SETUP COMPLETE!' -ForegroundColor Green
 Write-Host '1. Run this command to start your server:'
 Write-Host '   npm start' -ForegroundColor Yellow
 Write-Host ''
-Write-Host "2. To put your site online, open a NEW terminal and run:"
+Write-Host "2. To put your site online, open a NEW terminal and run these TWO commands:"
+$domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
+Write-Host "   cloudflared tunnel route dns -f $tunnelName $domainOnly" -ForegroundColor Yellow
 Write-Host "   cloudflared tunnel run --url http://localhost:8000 $tunnelName" -ForegroundColor Yellow
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
