@@ -459,12 +459,24 @@ export async function syncWithBundle() {
                 }
             }
             if (ytAcc) {
-                const ids = [ytAcc.id, ...(ytAcc.channels || []).map(c => c.id)];
-                ids.forEach(id => {
+                // BUGFIX: Only track actual Channel IDs (UC...), NOT the Bundle Account UUID.
+                // Using the UUID causes duplicates in bundle_usage.json
+                const realChannelIds = (ytAcc.channels || []).map(c => c.id);
+
+                realChannelIds.forEach(id => {
                     if (!usage.channels[id]) {
                         usage.channels[id] = { platform: 'youtube', lastActive: new Date().toISOString() };
                     } else {
                         usage.channels[id].platform = 'youtube';
+                    }
+                });
+
+                // PRUNING: Remove any 'youtube' entry in usage.channels that is NOT in realChannelIds
+                // This cleans up old UUID entries or ghost channels.
+                Object.keys(usage.channels).forEach(trackedId => {
+                    if (usage.channels[trackedId].platform === 'youtube' && !realChannelIds.includes(trackedId)) {
+                        console.log(`[Bundle Sync] Pruning ghost/UUID YouTube channel entry: ${trackedId}`);
+                        delete usage.channels[trackedId];
                     }
                 });
             }
