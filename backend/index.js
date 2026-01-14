@@ -10,7 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
-import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js';
+// import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js'; // REMOVED - using bundle-api
+import * as bundleApi from './bundle-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
 
@@ -531,21 +532,15 @@ router.get('/channels', async (req, res) => {
         }
 
         // Facebook Accounts/Pages
-        if (await fs.pathExists(FACEBOOK_TOKENS_PATH)) {
-            const data = await fs.readJson(FACEBOOK_TOKENS_PATH);
-            const fbTokensRaw = Array.isArray(data) ? data : (data && Array.isArray(data.tokens) ? data.tokens : []);
 
-            // Filter by user
-            const userFbTokens = fbTokensRaw.filter(t => t.username === username);
-
-            const fbChannels = userFbTokens.map(fb => ({
-                channelId: fb.accountId,
-                channelTitle: fb.accountTitle,
-                thumbnail: 'https://www.facebook.com/favicon.ico', // Placeholder
-                platform: 'facebook'
-            }));
+        // Facebook Accounts/Pages (via Bundle.social)
+        try {
+            const fbChannels = await bundleApi.getFacebookChannels();
             allChannels = [...allChannels, ...fbChannels];
+        } catch (fbError) {
+            console.error('[Channels] Failed to load Facebook channels from Bundle:', fbError);
         }
+
 
         res.json(allChannels);
     } catch (error) {
@@ -894,14 +889,33 @@ async function processVideoQueue() {
         let videoUrl;
 
         if (platform === 'facebook') {
-            // Facebook Upload
-            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH);
-            const fbAccount = fbTokens.find(t => t.accountId === channelId);
-            if (!fbAccount) throw new Error('Facebook account not found.');
+            // Facebook Upload via Bundle.social
+            console.log(`[Queue] Starting Facebook workflow for session ${sessionId}`);
+            jobStatus[sessionId].message = 'Uploading to Bundle.social... (This may take a minute for small videos)';
 
-            uploadResult = await uploadVideoToFacebook(channelId, fbAccount.access_token, outputVideoPath, { title, description }, (percent) => {
-                jobStatus[sessionId].message = `Uploading to Facebook... ${percent}%`;
-            });
+            // 1. Upload Video
+            console.log(`[Queue] Uploading file to Bundle.social: ${outputVideoPath}`);
+            const mediaId = await bundleApi.uploadVideo(outputVideoPath);
+            console.log(`[Queue] Bundle.social upload finished. Media ID: ${mediaId}`);
+
+            if (!mediaId) throw new Error('Failed to upload video to Bundle.social');
+
+            jobStatus[sessionId].message = 'Publishing to Facebook...';
+
+            // 2. Create Post in Background (Don't await to avoid timeout)
+            console.log(`[Queue] Starting Facebook post in background...`);
+            const postText = `${title}\n\n${description || ''}`;
+
+            bundleApi.postToFacebook(channelId, mediaId, postText, publishAt)
+                .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
+                .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
+
+            uploadResult = {
+                success: true,
+                data: { id: mediaId }, // Use mediaId as placeholder
+                url: `https://bundle.social/dashboard` // Direct to dashboard since post ID is async
+            };
+
         } else {
             // YouTube Upload
             const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
@@ -921,17 +935,22 @@ async function processVideoQueue() {
         if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
 
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);
-        videoUrl = (platform === 'facebook')
-            ? `https://www.facebook.com/${uploadResult.data.id}`
-            : `https://www.youtube.com/watch?v=${uploadResult.data.id}`;
+
+        // Use the URL returned by the upload process if available
+        videoUrl = uploadResult.url || (
+            (platform === 'facebook')
+                ? `https://www.facebook.com/${uploadResult.data.id}`
+                : `https://www.youtube.com/watch?v=${uploadResult.data.id}`
+        );
 
         jobStatus[sessionId] = {
             status: 'complete',
-            message: 'Upload Complete!',
+            message: platform === 'facebook' ? 'Scheduled on Bundle.social!' : 'Upload Complete!',
             videoUrl,
             creationTime,
             uploadTime
         };
+
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
@@ -1377,78 +1396,48 @@ router.get('/auth/mp3toyt', (req, res) => {
     }
 });
 
-// --- Facebook Authentication ---
+// --- Facebook Authentication (via Bundle.social) ---
 
 router.get('/auth/facebook', async (req, res) => {
     try {
+        // We use the same callback URL, though strictly speaking Bundle might just need *any* URL to redirect back to.
         const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
-        const authUrl = await getFacebookAuthUrl(redirectUri);
-        if (!authUrl) {
-            return res.send(`
-                <html>
-                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0;">
-                    <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; max-width: 450px;">
-                        <h2 style="color: #1877f2;">Facebook Not Configured</h2>
-                        <p>Your Facebook App ID and Secret are missing.</p>
-                        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
-                            <button onclick="configureNow()" style="padding: 10px 20px; border: none; background: #1877f2; color: white; border-radius: 6px; cursor: pointer; font-weight: 600;">Configure Now</button>
-                            <button onclick="window.close()" style="padding: 10px 20px; border: none; background: #e4e6eb; border-radius: 6px; cursor: pointer;">Close</button>
-                        </div>
-                        <script>
-                            function configureNow() {
-                                if (window.opener && window.opener.openFacebookCredentials) {
-                                    window.opener.openFacebookCredentials();
-                                    window.close();
-                                } else {
-                                    window.location.href = '/?action=manage-fb-creds';
-                                }
-                            }
-                        </script>
-                    </div>
-                </body>
-                </html>
-            `);
+        const connectUrl = await bundleApi.getFacebookConnectUrl(redirectUri);
+
+        if (!connectUrl) {
+            return res.status(500).send('Could not generate Bundle.social connection URL. Ensure BUNDLE_API_KEY is set and a Team exists.');
         }
-        res.redirect(authUrl);
+
+        console.log('[Bundle Auth] Redirecting to:', connectUrl);
+        res.redirect(connectUrl);
     } catch (error) {
-        console.error('[Facebook Auth Error]', error);
+        console.error('[Bundle Auth Error]', error);
         res.status(500).send('Facebook Authentication Initialization Failed');
     }
 });
 
 router.get('/auth/facebook/callback', async (req, res) => {
-    const { code } = req.query;
-    if (!code) return res.status(400).send('No code provided');
+    // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
+    // We just need to close the popup or redirect them back.
+    // The frontend can then refresh the channel list.
 
-    try {
-        const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
-        const tokenData = await getFacebookTokenFromCode(code, redirectUri);
-        const userInfo = await getFacebookUserInfo(tokenData.access_token);
-
-        // Save the user account
-        await saveFacebookToken(userInfo.user.id, userInfo.user.name, tokenData, 'user');
-
-        // Save each page account
-        for (const page of userInfo.pages) {
-            await saveFacebookToken(page.id, `${page.name} (Page)`, { access_token: page.access_token }, 'page');
-        }
-
-        res.send(`
-            <html>
-                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5;">
-                    <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
-                        <h2 style="color: #1877f2;">Facebook Connected!</h2>
-                        <p>Your Facebook profile and pages have been linked.</p>
-                        <p>You can close this window now.</p>
-                        <script>setTimeout(() => window.close(), 3000);</script>
-                    </div>
-                </body>
-            </html>
-        `);
-    } catch (error) {
-        console.error('[Facebook Callback Error]', error);
-        res.status(500).send('Facebook Authentication Failed');
-    }
+    res.send(`
+        <html>
+            <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5;">
+                <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
+                    <h2 style="color: #1877f2;">Connected!</h2>
+                    <p>Your Facebook account has been connected via Bundle.social.</p>
+                    <p>You can close this window now.</p>
+                    <script>
+                        if (window.opener && window.opener.loadChannels) {
+                            window.opener.loadChannels();
+                        }
+                        setTimeout(() => window.close(), 2000);
+                    </script>
+                </div>
+            </body>
+        </html>
+    `);
 });
 
 router.get('/mp3toyt/oauth2callback', async (req, res) => {

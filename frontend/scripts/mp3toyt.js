@@ -138,10 +138,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (platform === 'facebook') {
                         if (tagsField) tagsField.style.display = 'none';
-                        if (visibilityField) visibilityField.style.display = 'none';
+                        if (visibilityField) {
+                            visibilityField.style.display = 'block';
+                            // Facebook Pages via Bundle don't support Private/Unlisted, only Public or Schedule
+                            visibilityField.querySelectorAll('button[data-visibility="private"], button[data-visibility="unlisted"]')
+                                .forEach(btn => btn.style.display = 'none');
+                        }
                     } else {
                         if (tagsField) tagsField.style.display = 'block';
-                        if (visibilityField) visibilityField.style.display = 'block';
+                        if (visibilityField) {
+                            visibilityField.style.display = 'block';
+                            visibilityField.querySelectorAll('button').forEach(btn => btn.style.display = 'inline-block');
+                        }
                     }
 
                     updateCreateButton();

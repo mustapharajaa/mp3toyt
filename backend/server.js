@@ -47,8 +47,11 @@ app.use('/api', usersRouter);
 
 // Serve Landing Page at Root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/index.html'));
+    res.sendFile(path.join(__dirname, '../homepage/home.html'));
 });
+
+// Serve homepage static assets
+app.use(express.static(path.join(__dirname, '../homepage')));
 
 // Serve App at /app (Protected)
 app.get('/app', (req, res) => {
