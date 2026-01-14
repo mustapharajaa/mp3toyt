@@ -50,10 +50,29 @@ function getUsageForKey(key) {
             uploads: 0,
             facebookConnected: false,
             youtubeConnected: false,
-            month: currentMonth
+            month: currentMonth,
+            channels: {} // Track specific channel activity
         };
     }
+    if (!usageData[key].channels) usageData[key].channels = {};
     return usageData[key];
+}
+
+/**
+ * Updates the last active timestamp for a channel to prevent auto-disconnection.
+ */
+export async function updateActivity(instanceId, channelId) {
+    await ensureUsageLoaded();
+    const inst = getInstanceById(instanceId);
+    if (!inst) return;
+
+    const usage = getUsageForKey(inst.key);
+    if (!usage.channels[channelId]) {
+        usage.channels[channelId] = { lastActive: new Date().toISOString() };
+    } else {
+        usage.channels[channelId].lastActive = new Date().toISOString();
+    }
+    await saveUsage();
 }
 
 // Ensure usage is loaded once
@@ -123,40 +142,66 @@ export function getInstanceById(id) {
 }
 
 export async function getFacebookConnectUrl(redirectUrl) {
-    const inst = await getAvailableInstance('FACEBOOK');
-    if (!inst) throw new Error('No available Bundle.social slots for Facebook');
-    return getConnectUrl(inst, redirectUrl, 'FACEBOOK');
+    return getConnectUrlWithRotation('FACEBOOK', redirectUrl);
 }
 
 export async function getYoutubeConnectUrl(redirectUrl) {
-    const inst = await getAvailableInstance('YOUTUBE');
-    if (!inst) throw new Error('No available Bundle.social slots for YouTube');
-    return getConnectUrl(inst, redirectUrl, 'YOUTUBE');
+    return getConnectUrlWithRotation('YOUTUBE', redirectUrl);
+}
+
+async function getConnectUrlWithRotation(type, redirectUrl) {
+    await ensureUsageLoaded();
+    const platformField = type.toLowerCase() === 'facebook' ? 'facebookConnected' : 'youtubeConnected';
+
+    // Try to find a slot that we THINK is free
+    const availableIndices = instances
+        .map((_, i) => i)
+        .filter(i => {
+            const usage = getUsageForKey(instances[i].key);
+            return usage.uploads < 100 && !usage[platformField];
+        });
+
+    if (availableIndices.length === 0) {
+        throw new Error(`No available Bundle.social slots for ${type}`);
+    }
+
+    for (const idx of availableIndices) {
+        const inst = instances[idx];
+        try {
+            const url = await getConnectUrl(inst, redirectUrl, type);
+            if (url) return url;
+        } catch (error) {
+            // Check if it's the "Already Connected" error (Status 400)
+            if (error.status === 400 && error.body && error.body.message.includes('already has a')) {
+                console.warn(`[Bundle] Key ${idx} reports ${type} already connected. Updating local state and rotating...`);
+                const usage = getUsageForKey(inst.key);
+                usage[platformField] = true; // Sync local state
+                await saveUsage();
+                continue; // Try next instance
+            }
+            console.error(`[Bundle] Error on Key ${idx}:`, error.message);
+        }
+    }
+
+    throw new Error(`All available slots for ${type} returned errors or are actually full.`);
 }
 
 async function getConnectUrl(instance, redirectUrl, type) {
-    try {
-        const teamId = await getTeamId(instance);
-        if (!teamId) return null;
+    const teamId = await getTeamId(instance);
+    if (!teamId) return null;
 
-        const response = await instance.bundle.socialAccount.socialAccountConnect({
-            requestBody: {
-                teamId: teamId,
-                type: type,
-                redirectUrl: redirectUrl
-            }
-        });
-
-        if (response && response.url) {
-            // Include instance ID in redirect URL if needed? 
-            // Or just resolve it during claim based on which key currently has that account.
-            return response.url;
+    const response = await instance.bundle.socialAccount.socialAccountConnect({
+        requestBody: {
+            teamId: teamId,
+            type: type,
+            redirectUrl: redirectUrl
         }
-        return null;
-    } catch (error) {
-        console.error(`[Bundle] Error generating ${type} connect URL:`, error);
-        return null;
+    });
+
+    if (response && response.url) {
+        return response.url;
     }
+    return null;
 }
 
 export async function getConnectedChannels() {
@@ -299,6 +344,11 @@ async function postToPlatform(instanceId, type, channelId, mediaId, text, schedu
         // Update usage
         const usage = getUsageForKey(inst.key);
         usage.uploads++;
+
+        // Track activity
+        if (!usage.channels[channelId]) usage.channels[channelId] = {};
+        usage.channels[channelId].lastActive = new Date().toISOString();
+
         await saveUsage();
 
         return {
@@ -309,6 +359,102 @@ async function postToPlatform(instanceId, type, channelId, mediaId, text, schedu
     } catch (error) {
         console.error(`[Bundle] Error creating ${type} post:`, error);
         return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Background task to sync local usage with reality on Bundle.social
+ */
+export async function syncWithBundle() {
+    await ensureUsageLoaded();
+    console.log('[Bundle Sync] Starting global synchronization...');
+
+    for (const inst of instances) {
+        try {
+            const teamId = await getTeamId(inst);
+            if (!teamId) continue;
+
+            const teamRes = await inst.bundle.team.teamGetTeam({ id: teamId });
+            const socialAccounts = teamRes.socialAccounts || [];
+            const usage = getUsageForKey(inst.key);
+
+            // Update connected status
+            const fbAcc = socialAccounts.find(acc => acc.type === 'FACEBOOK');
+            const ytAcc = socialAccounts.find(acc => acc.type === 'YOUTUBE');
+
+            usage.facebookConnected = !!fbAcc;
+            usage.youtubeConnected = !!ytAcc;
+
+            // Track IDs found in reality to seed activity for new ones
+            if (fbAcc) {
+                if (!usage.channels[fbAcc.id]) {
+                    usage.channels[fbAcc.id] = { platform: 'facebook', lastActive: new Date().toISOString() };
+                } else {
+                    usage.channels[fbAcc.id].platform = 'facebook';
+                }
+            }
+            if (ytAcc) {
+                const ids = [ytAcc.id, ...(ytAcc.channels || []).map(c => c.id)];
+                ids.forEach(id => {
+                    if (!usage.channels[id]) {
+                        usage.channels[id] = { platform: 'youtube', lastActive: new Date().toISOString() };
+                    } else {
+                        usage.channels[id].platform = 'youtube';
+                    }
+                });
+            }
+
+        } catch (err) {
+            console.error(`[Bundle Sync] Error syncing key ${inst.id}:`, err.message);
+        }
+    }
+    await saveUsage();
+    console.log('[Bundle Sync] Synchronization complete.');
+}
+
+/**
+ * Disconnects channels that have been idle for more than 10 minutes.
+ */
+export async function cleanupIdleChannels() {
+    await ensureUsageLoaded();
+    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+    let disconnectsCount = 0;
+
+    for (const inst of instances) {
+        const usage = getUsageForKey(inst.key);
+        const channelEntries = Object.entries(usage.channels);
+
+        // Check YouTube idle status
+        if (usage.youtubeConnected) {
+            const ytChannels = channelEntries.filter(([_, data]) => data.platform === 'youtube');
+            const allYtIdle = ytChannels.length === 0 || ytChannels.every(([_, data]) =>
+                new Date(data.lastActive).getTime() < tenMinutesAgo
+            );
+
+            if (allYtIdle) {
+                console.log(`[Auto-Cleanup] Disconnecting idle YouTube on Key ${inst.id}`);
+                await disconnectPlatform(inst.id, 'YOUTUBE');
+                disconnectsCount++;
+            }
+        }
+
+        // Check Facebook idle status
+        if (usage.facebookConnected) {
+            const fbChannels = channelEntries.filter(([_, data]) => data.platform === 'facebook');
+            const allFbIdle = fbChannels.length === 0 || fbChannels.every(([_, data]) =>
+                new Date(data.lastActive).getTime() < tenMinutesAgo
+            );
+
+            if (allFbIdle) {
+                console.log(`[Auto-Cleanup] Disconnecting idle Facebook on Key ${inst.id}`);
+                await disconnectPlatform(inst.id, 'FACEBOOK');
+                disconnectsCount++;
+            }
+        }
+    }
+
+    if (disconnectsCount > 0) {
+        console.log(`[Auto-Cleanup] Cleaned up ${disconnectsCount} idle social accounts.`);
     }
 }
 

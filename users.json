@@ -94,5 +94,13 @@
     "role": "user",
     "plan": "free",
     "createdAt": "2026-01-14T16:46:43.348Z"
+  },
+  {
+    "id": "238a031b-b3ca-48cd-b11e-0211101672e5",
+    "username": "qq",
+    "password": "$2b$10$eGtODw1Kj4JULNaWrEI7Geej0eRYFiWrU1BpWkP49Iwc42uSlMwva",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T19:21:46.390Z"
   }
 ]

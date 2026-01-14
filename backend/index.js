@@ -58,22 +58,19 @@ fs.ensureDirSync(LOGOS_DIR);
 fs.ensureDirSync(FALLBACK_THUMBNAILS_DIR);
 
 // --- Bundle.social Slot Management (Auto-Disconnect) ---
-const lastActivityMap = new Map(); // Username -> Last Activity Timestamp
-const BUNDLE_INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes
+// --- Background Jobs & Sync ---
+// Initial sync on startup
+bundleApi.syncWithBundle().catch(err => console.error('[Bundle Startup] Initial sync failed:', err.message));
 
-/**
- * Cleanup inactive Bundle.social slots every minute.
- */
-setInterval(async () => {
-    const now = Date.now();
-    for (const [username, lastTime] of lastActivityMap.entries()) {
-        if (now - lastTime > BUNDLE_INACTIVITY_LIMIT) {
-            console.log(`[Bundle Cleanup] User ${username} inactive for >10 mins. Freeing slots...`);
-            lastActivityMap.delete(username);
-            await disconnectUserBundleChannels(username);
-        }
-    }
-}, 60000);
+// Periodically sync local state with reality on Bundle.social (every 5 mins)
+setInterval(() => {
+    bundleApi.syncWithBundle().catch(err => console.error('[Bundle Sync Job] Failed:', err.message));
+}, 5 * 60 * 1000);
+
+// Periodically cleanup idle channels (every 1 min)
+setInterval(() => {
+    bundleApi.cleanupIdleChannels().catch(err => console.error('[Auto-Cleanup Job] Failed:', err.message));
+}, 60 * 1000);
 
 async function disconnectUserBundleChannels(username) {
     if (!username || username === 'guest') return;
@@ -97,10 +94,7 @@ async function disconnectUserBundleChannels(username) {
     }
 }
 
-function refreshActivity(username) {
-    if (!username || username === 'guest') return;
-    lastActivityMap.set(username, Date.now());
-}
+// refreshActivity is now handled by bundleApi.updateActivity and its internal tracking
 
 /**
  * Picks a random image from the fallback thumbnails directory.
@@ -441,7 +435,7 @@ router.post('/upload-file', (req, res) => {
             }
 
             const username = req.session && req.session.username ? req.session.username : 'guest';
-            refreshActivity(username);
+            // refreshActivity(username); // Handled by actual usage now
             const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
             await fs.ensureDir(sessionDir);
 
@@ -926,9 +920,20 @@ async function processVideoQueue() {
         const bundleInstanceId = channelMeta.bundleInstanceId;
 
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
+
+        // Mark activity as starting
+        if (isBundle) {
+            await bundleApi.updateActivity(bundleInstanceId, channelId);
+        }
+
         const creationStartTime = Date.now();
         await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
         const creationTime = Math.round((Date.now() - creationStartTime) / 1000);
+
+        // Update activity again before upload starts (prevents cleanup during long renders)
+        if (isBundle) {
+            await bundleApi.updateActivity(bundleInstanceId, channelId);
+        }
 
         jobStatus[sessionId] = { status: 'uploading', message: `Uploading to ${platform === 'facebook' ? 'Facebook' : 'YouTube'}... 0%`, platform };
         const uploadStartTime = Date.now();
@@ -981,8 +986,10 @@ async function processVideoQueue() {
 
         if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
 
-        // Refresh activity on successful upload
-        refreshActivity(username);
+        // Final activity update upon successful upload
+        if (isBundle) {
+            await bundleApi.updateActivity(bundleInstanceId, channelId);
+        }
 
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);
 
