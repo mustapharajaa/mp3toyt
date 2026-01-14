@@ -125,30 +125,34 @@ cloudflared tunnel login
 
 echo "--- Cloudflare Tunnel Setup ---"
 TUNNEL_NAME="mp3-tunnel"
-# Check if any secret json exists in ~/.cloudflared (crude check for local keys)
-if [ -z "$(ls -A ~/.cloudflared/*.json 2>/dev/null)" ]; then
-    HAS_KEYS=false
-else
+
+# More robust check: Does the specific tunnel name exist on this machine with local keys?
+# cloudflared tunnel list shows tunnels that are authorized on this machine
+TUNNEL_LIST=$(cloudflared tunnel list)
+
+if echo "$TUNNEL_LIST" | grep -q "[[:space:]]$TUNNEL_NAME[[:space:]]"; then
     HAS_KEYS=true
-fi
-
-# Check if tunnel already exists on Cloudflare servers
-if cloudflared tunnel list | grep -q "$TUNNEL_NAME"; then
-    TUNNEL_EXISTS_IN_CLOUD=true
 else
-    TUNNEL_EXISTS_IN_CLOUD=false
+    HAS_KEYS=false
 fi
 
-if [ "$TUNNEL_EXISTS_IN_CLOUD" = false ] || [ "$HAS_KEYS" = false ]; then
-    if [ "$TUNNEL_EXISTS_IN_CLOUD" = true ] && [ "$HAS_KEYS" = false ]; then
-        echo "Warning: Tunnel '$TUNNEL_NAME' exists on Cloudflare but NO secret keys found on this machine."
-        read -p "Enter a NEW unique tunnel name for this machine (e.g. mp3-rdp-tunnel): " NEW_TUNNEL_NAME
-        TUNNEL_NAME=${NEW_TUNNEL_NAME:-mp3-rdp-tunnel}
+if [ "$HAS_KEYS" = false ]; then
+    # Look for ANY existing tunnels on this machine
+    EXISTING=$(echo "$TUNNEL_LIST" | grep "[0-9a-f]\{8\}-" || true)
+    if [ -n "$EXISTING" ]; then
+        echo "Found existing authorized tunnels on this machine:"
+        echo "$EXISTING" | sed 's/^/  - /'
+        read -p "Enter the tunnel name you want to use (or press Enter for mp3-rdp-tunnel): " USER_TUNNEL
+        TUNNEL_NAME=${USER_TUNNEL:-mp3-rdp-tunnel}
+    else
+        echo "No tunnels found on this machine."
+        read -p "Enter a name for your new tunnel (default: mp3-tunnel): " USER_TUNNEL
+        TUNNEL_NAME=${USER_TUNNEL:-mp3-tunnel}
+        echo "Creating Cloudflare Tunnel: $TUNNEL_NAME..."
+        cloudflared tunnel create "$TUNNEL_NAME"
     fi
-    echo "Creating Cloudflare Tunnel: $TUNNEL_NAME..."
-    cloudflared tunnel create "$TUNNEL_NAME"
 else
-    echo "Tunnel '$TUNNEL_NAME' already exists locally and on Cloudflare. Ready to run."
+    echo "Tunnel '$TUNNEL_NAME' is authorized and ready on this machine."
 fi
 
 # Extract domain for DNS routing (remove https://)

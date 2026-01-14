@@ -187,30 +187,35 @@ if (-not (Test-Path $certPath)) {
 }
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
+Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
 $tunnelName = "mp3-tunnel"
-$credentialPath = Join-Path $HOME ".cloudflared\*.json"
-$localCredentials = Get-ChildItem $credentialPath -ErrorAction SilentlyContinue
 
-# Check if we have local keys for the default tunnel
+# More robust check: Does the specific tunnel name exist on this machine?
+$tunnelList = cloudflared tunnel list
+$specificTunnel = $tunnelList | Select-String "\s$tunnelName\s"
+
 $hasKeys = $false
-if ($localCredentials) {
-    # This is a bit simplified, but checks if any json exists which usually means a tunnel was created here
+if ($specificTunnel) {
+    # If it's in the list with an ID, it means the local credentials file exists
     $hasKeys = $true
 }
 
-$tunnelExistsInCloud = cloudflared tunnel list | Select-String $tunnelName
-
-if (-not $tunnelExistsInCloud -or -not $hasKeys) {
-    if ($tunnelExistsInCloud -and -not $hasKeys) {
-        Write-Host "Warning: Tunnel '$tunnelName' exists on Cloudflare but NO secret keys found on this machine." -ForegroundColor Yellow
-        $tunnelName = Read-Host "Enter a NEW unique tunnel name for this machine (e.g. mp3-rdp-tunnel)"
+if (-not $hasKeys) {
+    $existingTunnels = $tunnelList | Where-Object { $_ -match "[0-9a-f]{8}-" }
+    if ($existingTunnels) {
+        Write-Host "Found existing tunnels on this machine:" -ForegroundColor Yellow
+        $existingTunnels | ForEach-Object { Write-Host "  - $_" }
+        $tunnelName = Read-Host "Enter the tunnel name you want to use (or press Enter for mp3-rdp-tunnel)"
         if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
+    } else {
+        Write-Host "No tunnels found on this machine." -ForegroundColor Yellow
+        $tunnelName = Read-Host "Enter a name for your new tunnel (default: mp3-tunnel)"
+        if (-not $tunnelName) { $tunnelName = "mp3-tunnel" }
+        Write-Host "Creating Cloudflare Tunnel: $tunnelName..." -ForegroundColor Yellow
+        cloudflared tunnel create $tunnelName
     }
-    
-    Write-Host "Creating Cloudflare Tunnel: $tunnelName..." -ForegroundColor Yellow
-    cloudflared tunnel create $tunnelName
 } else {
-    Write-Host "Tunnel '$tunnelName' already exists locally and on Cloudflare. Ready to run." -ForegroundColor Green
+    Write-Host "Tunnel '$tunnelName' is authorized and ready on this machine." -ForegroundColor Green
 }
 
 # Cleanup existing processes to free up ports
