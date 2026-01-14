@@ -1005,6 +1005,7 @@ router.get('/session-status', async (req, res) => {
 
         res.json({
             success: true,
+            audio: audioFiles.length > 0,
             audioCount: audioFiles.length,
             totalDuration: totalDurationFormatted,
             image: imageExists,
@@ -1022,24 +1023,24 @@ router.post('/create-video', upload.none(), async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
-        const imagePath = path.join(sessionDir, 'image.jpg');
-
         if (!await fs.pathExists(sessionDir)) {
             return res.status(400).json({ success: false, error: 'Session has expired or files were not uploaded.' });
         }
 
         const files = await fs.readdir(sessionDir);
         const audioFilename = files.find(f => f.startsWith('audio_') || f.startsWith('audio.')); // Find any audio
+        const imageFilename = files.find(f => f.startsWith('image.')); // Find any image (jpg, webp, etc.)
 
         if (!audioFilename) {
             return res.status(400).json({ success: false, error: 'Audio file not found.' });
         }
 
-        const audioPath = path.join(sessionDir, audioFilename); // Pass the first one found, createVideoWithFfmpeg will concat all
-
-        if (!await fs.pathExists(imagePath)) {
+        if (!imageFilename) {
             return res.status(400).json({ success: false, error: 'Image file not found.' });
         }
+
+        const audioPath = path.join(sessionDir, audioFilename);
+        const imagePath = path.join(sessionDir, imageFilename);
 
         const plan = req.session && req.session.plan ? req.session.plan : 'free'; // Default to free if not set
         console.log(`[Queue] Adding job for user: ${req.session ? req.session.username : 'guest'} (Plan: ${plan})`);
