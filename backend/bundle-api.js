@@ -579,3 +579,30 @@ async function resolveSlotConflicts(currentIdx, socialAccounts, seenAccountIds) 
         seenAccountIds[acc.id] = currentIdx;
     }
 }
+
+/**
+ * Manually marks a channel as active. Useful for initializing timestamp on connection.
+ */
+export async function markChannelActive(instanceId, channelId, platform) {
+    if (instanceId === undefined || !channelId) return;
+    try {
+        await ensureUsageLoaded();
+        const inst = getInstanceById(instanceId);
+        if (!inst) return;
+
+        const usage = getUsageForKey(inst.key);
+        if (!usage.channels[channelId]) usage.channels[channelId] = {};
+
+        usage.channels[channelId].platform = platform;
+        usage.channels[channelId].lastActive = new Date().toISOString();
+
+        // Also ensure connected status is true for that platform
+        if (platform === 'youtube') usage.youtubeConnected = true;
+        if (platform === 'facebook') usage.facebookConnected = true;
+
+        await saveUsage();
+        console.log(`[Bundle] Manually marked channel ${channelId} as active on Key ${instanceId}`);
+    } catch (err) {
+        console.error('[Bundle] Failed to mark channel active:', err.message);
+    }
+}

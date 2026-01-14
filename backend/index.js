@@ -1556,6 +1556,11 @@ async function claimBundleChannels(username, targetInstanceId = null) {
                 socialAccountId: ch.socialAccountId,
                 bundleInstanceId: ch.bundleInstanceId
             }, username);
+
+            // IMMEDIATE TIMESTAMP: Mark as active NOW so the 5-min timer starts ticking instantly.
+            // This prevents the "Free Safety Period" (waiting for next sync).
+            await bundleApi.markChannelActive(ch.bundleInstanceId, ch.channelId, ch.platform);
+
             claimedIds.push(ch.channelId);
         }
 
