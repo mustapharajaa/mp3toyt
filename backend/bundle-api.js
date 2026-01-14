@@ -431,7 +431,9 @@ export async function cleanupIdleChannels() {
         // Check YouTube idle status
         if (usage.youtubeConnected) {
             const ytChannels = channelEntries.filter(([_, data]) => data.platform === 'youtube');
-            const allYtIdle = ytChannels.length === 0 || ytChannels.every(([_, data]) =>
+            // SAFETY: Only disconnect if we HAVE channel data and all are idle.
+            // If ytChannels.length === 0, it means sync hasn't found them yet, so DON'T disconnect.
+            const allYtIdle = ytChannels.length > 0 && ytChannels.every(([_, data]) =>
                 new Date(data.lastActive).getTime() < tenMinutesAgo
             );
 
@@ -445,7 +447,8 @@ export async function cleanupIdleChannels() {
         // Check Facebook idle status
         if (usage.facebookConnected) {
             const fbChannels = channelEntries.filter(([_, data]) => data.platform === 'facebook');
-            const allFbIdle = fbChannels.length === 0 || fbChannels.every(([_, data]) =>
+            // SAFETY: Only disconnect if we HAVE channel data and all are idle.
+            const allFbIdle = fbChannels.length > 0 && fbChannels.every(([_, data]) =>
                 new Date(data.lastActive).getTime() < tenMinutesAgo
             );
 
