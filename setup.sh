@@ -124,7 +124,7 @@ echo "-----------------------------------"
 cloudflared tunnel login
 
 echo "--- Cloudflare Tunnel Setup ---"
-TUNNEL_NAME="mp3-tunnel"
+TUNNEL_NAME="mp3-rdp-tunnel"
 
 # More robust check: Does the specific tunnel name exist on this machine with local keys?
 # cloudflared tunnel list shows tunnels that are authorized on this machine
@@ -145,9 +145,15 @@ if [ "$HAS_KEYS" = false ]; then
         read -p "Enter the tunnel name you want to use (or press Enter for mp3-rdp-tunnel): " USER_TUNNEL
         TUNNEL_NAME=${USER_TUNNEL:-mp3-rdp-tunnel}
     else
-        echo "No tunnels found on this machine."
-        read -p "Enter a name for your new tunnel (default: mp3-tunnel): " USER_TUNNEL
-        TUNNEL_NAME=${USER_TUNNEL:-mp3-tunnel}
+        echo "No tunnels or keys found for '$TUNNEL_NAME' on this machine."
+        read -p "Enter a name for your tunnel on this machine (default: mp3-rdp-tunnel): " USER_TUNNEL
+        TUNNEL_NAME=${USER_TUNNEL:-mp3-rdp-tunnel}
+        
+        # Check if they picked a name that exists on Cloudflare but not locally
+        if echo "$TUNNEL_LIST" | grep -q "[[:space:]]$TUNNEL_NAME[[:space:]]"; then
+             echo "Note: Tunnel '$TUNNEL_NAME' exists on Cloudflare. If you don't have the keys, this command might fail."
+        fi
+        
         echo "Creating Cloudflare Tunnel: $TUNNEL_NAME..."
         cloudflared tunnel create "$TUNNEL_NAME"
     fi

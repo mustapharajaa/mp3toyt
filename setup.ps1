@@ -187,7 +187,7 @@ if (-not (Test-Path $certPath)) {
 }
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
-$tunnelName = "mp3-tunnel"
+$tunnelName = "mp3-rdp-tunnel"
 
 # More robust check: Does the specific tunnel name exist on this machine?
 $tunnelList = cloudflared tunnel list
@@ -207,9 +207,16 @@ if (-not $hasKeys) {
         $tunnelName = Read-Host "Enter the tunnel name you want to use (or press Enter for mp3-rdp-tunnel)"
         if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
     } else {
-        Write-Host "No tunnels found on this machine." -ForegroundColor Yellow
-        $tunnelName = Read-Host "Enter a name for your new tunnel (default: mp3-tunnel)"
-        if (-not $tunnelName) { $tunnelName = "mp3-tunnel" }
+        Write-Host "No tunnels or keys found for '$tunnelName' on this machine." -ForegroundColor Yellow
+        $tunnelName = Read-Host "Enter a name for your tunnel on this machine (default: mp3-rdp-tunnel)"
+        if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
+        
+        # Check if they picked a name that exists on Cloudflare but not locally
+        $inCloud = cloudflared tunnel list | Select-String "\s$tunnelName\s"
+        if ($inCloud) {
+             Write-Host "Note: Tunnel '$tunnelName' exists on Cloudflare. If you don't have the keys, this command might fail." -ForegroundColor Gray
+        }
+        
         Write-Host "Creating Cloudflare Tunnel: $tunnelName..." -ForegroundColor Yellow
         cloudflared tunnel create $tunnelName
     }
