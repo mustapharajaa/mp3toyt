@@ -212,7 +212,7 @@ export async function getConnectedChannels() {
     // This is tricky: we need to check ALL keys to see which ones now have accounts
     // and update our usage tracking.
     await ensureUsageLoaded();
-    let allChannels = [];
+    const seenAccountIds = {}; // Tracks { accountId: instanceId } to find duplicates
 
     for (const inst of instances) {
         try {
@@ -221,10 +221,14 @@ export async function getConnectedChannels() {
 
             const teamRes = await inst.bundle.team.teamGetTeam({ id: teamId });
             const socialAccounts = teamRes.socialAccounts || [];
-
             const usage = getUsageForKey(inst.key);
+
+            // Update connected status
             usage.facebookConnected = socialAccounts.some(acc => acc.type === 'FACEBOOK');
             usage.youtubeConnected = socialAccounts.some(acc => acc.type === 'YOUTUBE');
+
+            // DETECT & RESOLVE DUPLICATES: Immediately free up space if this channel exists elsewhere
+            await resolveSlotConflicts(inst.id, socialAccounts, seenAccountIds);
 
             for (const account of socialAccounts) {
                 if (account.type !== 'FACEBOOK' && account.type !== 'YOUTUBE') continue;
@@ -235,7 +239,7 @@ export async function getConnectedChannels() {
                     thumbnail: ch.pictureUrl || account.pictureUrl || (platform === 'facebook' ? 'https://www.facebook.com/favicon.ico' : 'https://www.youtube.com/favicon.ico'),
                     platform: platform,
                     socialAccountId: account.id,
-                    bundleInstanceId: inst.id // Store which key this belongs to
+                    bundleInstanceId: inst.id
                 }));
                 allChannels = allChannels.concat(mapped);
             }
@@ -391,17 +395,8 @@ export async function syncWithBundle() {
             usage.facebookConnected = !!fbAcc;
             usage.youtubeConnected = !!ytAcc;
 
-            // DETECT DUPLICATES: If this specific social account ID is already linked to another key,
-            // we should disconnect it from the PREVIOUS key to free up that slot.
-            for (const acc of socialAccounts) {
-                if (seenAccountIds[acc.id] !== undefined) {
-                    const oldIdx = seenAccountIds[acc.id];
-                    console.log(`[Bundle Sync] Redundant account ${acc.id} (${acc.type}) found on Key ${inst.id}. Disconnecting from Key ${oldIdx} to free slot...`);
-                    // Disconnect from the OLD instance
-                    await disconnectPlatform(oldIdx, acc.type);
-                }
-                seenAccountIds[acc.id] = inst.id;
-            }
+            // DETECT & RESOLVE DUPLICATES
+            await resolveSlotConflicts(inst.id, socialAccounts, seenAccountIds);
 
             // Track IDs found in reality to seed activity for new ones
             if (fbAcc) {
@@ -515,5 +510,20 @@ export async function disconnectPlatform(instanceId, type) {
     } catch (error) {
         console.error(`[Bundle] Error disconnecting ${type}:`, error.message);
         return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Shared helper to detect and prune redundant channel connections across multiple API keys.
+ */
+async function resolveSlotConflicts(currentIdx, socialAccounts, seenAccountIds) {
+    for (const acc of socialAccounts) {
+        if (seenAccountIds[acc.id] !== undefined) {
+            const oldIdx = seenAccountIds[acc.id];
+            console.log(`[Bundle Sync] Redundant account ${acc.id} (${acc.type}) found on Key ${currentIdx}. Disconnecting from Key ${oldIdx} to free slot...`);
+            // Disconnect from the OLD instance
+            await disconnectPlatform(oldIdx, acc.type);
+        }
+        seenAccountIds[acc.id] = currentIdx;
     }
 }
