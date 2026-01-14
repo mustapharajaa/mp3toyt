@@ -92,6 +92,7 @@ echo "Creating placeholder JSON files if missing..."
 [ -f facebook_tokens.json ] || echo "[]" > facebook_tokens.json
 [ -f facebook_credentials.json ] || echo "{}" > facebook_credentials.json
 [ -f credentials.json ] || echo "{}" > credentials.json
+[ -f bundle_usage.json ] || echo "{}" > bundle_usage.json
 
 # Verify installations
 echo "-----------------------------------"

@@ -148,6 +148,11 @@ if (-not (Test-Path $credentialsFile)) {
     [System.IO.File]::WriteAllText($credentialsFile, "{}")
 }
 
+$bundleUsageFile = Join-Path $PSScriptRoot "bundle_usage.json"
+if (-not (Test-Path $bundleUsageFile)) { 
+    [System.IO.File]::WriteAllText($bundleUsageFile, "{}")
+}
+
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 Write-Host "Verifying installations:"
 ffmpeg -version | Select-String "version"
