@@ -1522,16 +1522,29 @@ async function claimBundleChannels(username, targetInstanceId = null) {
         const claimedIds = [];
 
         for (const ch of bundleChannels) {
-            // CONFLICT DETECTION: Is this channel connected to a DIFFERENT API Key elsewhere?
-            const conflict = allLocalChannels.find(lc =>
+            // A. GLOBAL CHANNEL CONFLICT: Is THIS specific channel already linked elsewhere?
+            const globalConflict = allLocalChannels.find(lc =>
                 lc.channelId === ch.channelId &&
                 lc.bundleInstanceId !== ch.bundleInstanceId
             );
 
-            if (conflict) {
-                console.log(`[Bundle Claim] Conflict detected! Channel ${ch.channelTitle} already exists on Key ${conflict.bundleInstanceId}. Disconnecting old instance...`);
-                // Disconnect the OLD key without scanning it (Purely Local Intelligence)
-                await bundleApi.disconnectPlatform(conflict.bundleInstanceId, ch.platform);
+            if (globalConflict) {
+                console.log(`[Bundle Claim] Global Conflict! Channel ${ch.channelTitle} already exists on Key ${globalConflict.bundleInstanceId}. Disconnecting old instance...`);
+                await bundleApi.disconnectPlatform(globalConflict.bundleInstanceId, ch.platform);
+            }
+
+            // B. LOCAL SLOT EXCLUSION: Bundle only allows ONE YT/FB per API Key.
+            // If Key 1 now has "Channel B", we must remove "Channel A" from our file
+            // because it's physically gone from that key slot.
+            const slotOccupant = allLocalChannels.find(lc =>
+                lc.bundleInstanceId === ch.bundleInstanceId &&
+                lc.platform === ch.platform &&
+                lc.channelId !== ch.channelId // Different channel, same slot
+            );
+
+            if (slotOccupant) {
+                console.log(`[Bundle Claim] Slot Exclusion! Key ${ch.bundleInstanceId} (${ch.platform}) now belongs to ${ch.channelTitle}. Removing old record for ${slotOccupant.channelTitle}`);
+                await mp3toytChannels.deleteChannel(slotOccupant.channelId);
             }
 
             // Save/Update the channel for this user
