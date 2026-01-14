@@ -774,7 +774,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (progressBar) progressBar.style.width = '100%';
                 setTimeout(() => jobProgress.style.display = 'none', 1000);
                 clearInterval(interval);
-                setStatus(document.getElementById('final-status'), 'success', `<strong>Complete!</strong> <a href="${status.videoUrl}" target="_blank">Watch on YouTube</a> <br><small>Created in ${status.creationTime}s • Uploaded in ${status.uploadTime}s</small>`);
+
+                let successHtml = `<strong>Complete!</strong> `;
+                if (status.platform === 'facebook') {
+                    successHtml += `<span style="color: #1877f2;">Processing on Facebook...</span> `;
+                } else {
+                    successHtml += `<a href="${status.videoUrl}" target="_blank">Watch on YouTube</a> `;
+                }
+                successHtml += `<br><small>Created in ${status.creationTime}s • Uploaded in ${status.uploadTime}s</small>`;
+
+                setStatus(document.getElementById('final-status'), 'success', successHtml);
                 showNotification('Video created and uploaded!');
             } else if (status.status === 'failed') {
                 clearInterval(interval);
