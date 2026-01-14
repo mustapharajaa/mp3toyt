@@ -165,11 +165,52 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
             return usage.uploads < 100 && !usage[platformField];
         });
 
-    if (availableIndices.length === 0) {
-        throw new Error(`No available Bundle.social slots for ${type}`);
+    let finalIndices = availableIndices;
+
+    if (finalIndices.length === 0) {
+        console.warn(`[Bundle] All slots for ${type} are full. Identifying least active channel for displacement...`);
+        let oldestTime = Infinity;
+        let oldestIdx = -1;
+
+        for (let i = 0; i < instances.length; i++) {
+            const usage = getUsageForKey(instances[i].key);
+            if (usage.uploads >= 100) continue; // Skip keys with no quota
+
+            // Find the most recent activity for this platform on this key
+            let lastPlatformActive = 0;
+            if (usage.channels) {
+                Object.values(usage.channels).forEach(ch => {
+                    if (ch.platform === type.toLowerCase()) {
+                        const time = new Date(ch.lastActive).getTime();
+                        if (time > lastPlatformActive) lastPlatformActive = time;
+                    }
+                });
+            }
+
+            // If no activity found, treat as very old (1ms)
+            if (lastPlatformActive === 0) lastPlatformActive = 1;
+
+            if (lastPlatformActive < oldestTime) {
+                oldestTime = lastPlatformActive;
+                oldestIdx = i;
+            }
+        }
+
+        if (oldestIdx !== -1) {
+            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            if (oldestTime > fiveMinutesAgo) {
+                throw new Error(`All slots for ${type} are busy with active users (less than 5 mins idle). Please try again shortly.`);
+            }
+
+            console.log(`[Bundle] Displacing least active ${type} connection on Key ${oldestIdx} (Last active: ${new Date(oldestTime).toISOString()})`);
+            await disconnectPlatform(oldestIdx, type);
+            finalIndices = [oldestIdx];
+        } else {
+            throw new Error(`No available Bundle.social slots for ${type} and no active channels to displace.`);
+        }
     }
 
-    for (const idx of availableIndices) {
+    for (const idx of finalIndices) {
         const inst = instances[idx];
         try {
             // Append inst=idx to the redirectUrl so the callback knows which one we used
