@@ -1102,7 +1102,7 @@ router.post('/create-video', upload.none(), async (req, res) => {
         const plan = req.session && req.session.plan ? req.session.plan : 'free';
         const usernameForActivity = req.session && req.session.username ? req.session.username : 'guest';
         console.log(`[Queue] Adding job for user: ${usernameForActivity} (Plan: ${plan})`);
-        refreshActivity(usernameForActivity);
+        // refreshActivity(usernameForActivity); // Handled by actual usage now
 
         jobStatus[sessionId] = { status: 'queued', message: 'Your video is in the queue.' };
         videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform: platform || 'youtube', overlay, plan, username });
@@ -1499,7 +1499,7 @@ async function claimBundleChannels(username) {
     if (!username || username === 'guest') return [];
     try {
         console.log(`[Bundle Claim] Claiming channels for user: ${username}`);
-        refreshActivity(username); // Connect counts as activity
+        // refreshActivity(username); // Connect counts as activity
         const bundleChannels = await bundleApi.getConnectedChannels();
         const claimedIds = [];
         for (const ch of bundleChannels) {
