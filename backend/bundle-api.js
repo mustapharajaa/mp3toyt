@@ -474,10 +474,24 @@ export async function disconnectPlatform(instanceId, type) {
             requestBody: { teamId, type: type.toUpperCase() }
         });
 
-        // Update usage
+        // Update usage and clear associated channels
         const usage = getUsageForKey(inst.key);
-        if (type.toUpperCase() === 'FACEBOOK') usage.facebookConnected = false;
-        if (type.toUpperCase() === 'YOUTUBE') usage.youtubeConnected = false;
+        const typeUpper = type.toUpperCase();
+
+        if (typeUpper === 'FACEBOOK') {
+            usage.facebookConnected = false;
+            // Remove FB channel IDs
+            Object.entries(usage.channels).forEach(([id, data]) => {
+                if (data.platform === 'facebook') delete usage.channels[id];
+            });
+        }
+        if (typeUpper === 'YOUTUBE') {
+            usage.youtubeConnected = false;
+            // Remove YT channel IDs
+            Object.entries(usage.channels).forEach(([id, data]) => {
+                if (data.platform === 'youtube') delete usage.channels[id];
+            });
+        }
         await saveUsage();
 
         return { success: true };
