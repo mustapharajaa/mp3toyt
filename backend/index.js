@@ -67,10 +67,10 @@ setInterval(() => {
     bundleApi.syncWithBundle().catch(err => console.error('[Bundle Sync Job] Failed:', err.message));
 }, 5 * 60 * 1000);
 
-// Periodically cleanup idle channels (every 1 min)
+// Periodically cleanup idle channels (every 30 seconds)
 setInterval(() => {
     bundleApi.cleanupIdleChannels().catch(err => console.error('[Auto-Cleanup Job] Failed:', err.message));
-}, 60 * 1000);
+}, 30 * 1000);
 
 async function disconnectUserBundleChannels(username) {
     if (!username || username === 'guest') return;
