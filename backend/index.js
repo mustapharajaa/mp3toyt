@@ -953,12 +953,12 @@ async function processVideoQueue() {
         if (isBundle) {
             // Bundle.social Upload (Facebook or YouTube)
             console.log(`[Queue] Uploading to Bundle.social (${platform}) via instance ${bundleInstanceId}: ${outputVideoPath}`);
-            jobStatus[sessionId].message = `Uploading to ${platform}...`;
+            if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to ${platform}...`;
             const mediaId = await bundleApi.uploadVideo(bundleInstanceId, outputVideoPath);
 
             if (!mediaId) throw new Error('Failed to upload to Bundle.social');
 
-            jobStatus[sessionId].message = `Publishing to ${platform}...`;
+            if (jobStatus[sessionId]) jobStatus[sessionId].message = `Publishing to ${platform}...`;
             const postText = `${title}\n\n${description || ''}`;
 
             if (platform === 'facebook') {
@@ -989,7 +989,7 @@ async function processVideoQueue() {
             };
 
             uploadResult = await uploadVideo(channelId, outputVideoPath, videoMetadata, (percent) => {
-                jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
+                if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
             });
         }
 
@@ -1340,7 +1340,12 @@ router.get('/job-status/:sessionId', (req, res) => {
     if (!status) return res.status(404).json({ status: 'not_found', message: 'Job not found.' });
     res.json(status);
     if (status.status === 'complete' || status.status === 'failed') {
-        setTimeout(() => { delete jobStatus[sessionId]; }, 60000);
+        // Only delete after 60s IF it hasn't been replaced by a new job
+        setTimeout(() => {
+            if (jobStatus[sessionId] && (jobStatus[sessionId].status === 'complete' || jobStatus[sessionId].status === 'failed')) {
+                delete jobStatus[sessionId];
+            }
+        }, 60000);
     }
 });
 
