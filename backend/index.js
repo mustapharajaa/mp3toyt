@@ -891,7 +891,7 @@ async function processVideoQueue() {
         if (platform === 'facebook') {
             // Facebook Upload via Bundle.social
             console.log(`[Queue] Starting Facebook workflow for session ${sessionId}`);
-            jobStatus[sessionId].message = 'Uploading to Bundle.social... (This may take a minute for small videos)';
+            jobStatus[sessionId].message = 'Uploading to facebook...';
 
             // 1. Upload Video
             console.log(`[Queue] Uploading file to Bundle.social: ${outputVideoPath}`);
@@ -949,7 +949,8 @@ async function processVideoQueue() {
             videoUrl,
             creationTime,
             uploadTime,
-            platform
+            platform,
+            publishAt
         };
 
     } catch (error) {
