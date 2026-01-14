@@ -935,6 +935,15 @@ async function processVideoQueue() {
             await bundleApi.updateActivity(bundleInstanceId, channelId);
         }
 
+        // Log final video size
+        try {
+            const stats = await fs.stat(outputVideoPath);
+            const sizeInMB = (stats.size / (1024 * 1024)).toFixed(2);
+            console.log(`[Queue] Final video created: ${outputVideoPath} (${sizeInMB} MB)`);
+        } catch (sizeErr) {
+            console.warn('[Queue] Could not determine final video size:', sizeErr.message);
+        }
+
         jobStatus[sessionId] = { status: 'uploading', message: `Uploading to ${platform === 'facebook' ? 'Facebook' : 'YouTube'}... 0%`, platform };
         const uploadStartTime = Date.now();
 
