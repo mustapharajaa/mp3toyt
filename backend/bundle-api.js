@@ -373,6 +373,8 @@ export async function syncWithBundle() {
     await ensureUsageLoaded();
     console.log('[Bundle Sync] Starting global synchronization...');
 
+    const seenAccountIds = {}; // Tracks { accountId: instanceId } to find duplicates
+
     for (const inst of instances) {
         try {
             const teamId = await getTeamId(inst);
@@ -388,6 +390,18 @@ export async function syncWithBundle() {
 
             usage.facebookConnected = !!fbAcc;
             usage.youtubeConnected = !!ytAcc;
+
+            // DETECT DUPLICATES: If this specific social account ID is already linked to another key,
+            // we should disconnect it from the PREVIOUS key to free up that slot.
+            for (const acc of socialAccounts) {
+                if (seenAccountIds[acc.id] !== undefined) {
+                    const oldIdx = seenAccountIds[acc.id];
+                    console.log(`[Bundle Sync] Redundant account ${acc.id} (${acc.type}) found on Key ${inst.id}. Disconnecting from Key ${oldIdx} to free slot...`);
+                    // Disconnect from the OLD instance
+                    await disconnectPlatform(oldIdx, acc.type);
+                }
+                seenAccountIds[acc.id] = inst.id;
+            }
 
             // Track IDs found in reality to seed activity for new ones
             if (fbAcc) {
