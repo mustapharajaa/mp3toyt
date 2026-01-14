@@ -1512,8 +1512,17 @@ router.get('/auth/facebook', async (req, res) => {
 async function claimBundleChannels(username) {
     if (!username || username === 'guest') return [];
     try {
-        console.log(`[Bundle Claim] Claiming channels for user: ${username}`);
-        // refreshActivity(username); // Connect counts as activity
+        console.log(`[Bundle Claim] Claiming fresh channels for user: ${username}`);
+
+        // 1. Clear existing bundle-linked channels for this user to avoid stale mappings
+        const existing = await mp3toytChannels.getChannelsForUser(username);
+        for (const ch of existing) {
+            if (ch.socialAccountId) {
+                console.log(`[Bundle Claim] Clearing stale mapping for ${ch.channelTitle}`);
+                await mp3toytChannels.deleteChannel(ch.channelId);
+            }
+        }
+
         const bundleChannels = await bundleApi.getConnectedChannels();
         const claimedIds = [];
         for (const ch of bundleChannels) {
