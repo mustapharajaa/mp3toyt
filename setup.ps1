@@ -187,13 +187,30 @@ if (-not (Test-Path $certPath)) {
 }
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
-# Improved check for existing tunnel
-$tunnelExists = cloudflared tunnel list | Select-String 'mp3-tunnel'
-if (-not $tunnelExists) {
-    Write-Host 'Creating Cloudflare Tunnel: mp3-tunnel...' -ForegroundColor Yellow
-    cloudflared tunnel create mp3-tunnel
+$tunnelName = "mp3-tunnel"
+$credentialPath = Join-Path $HOME ".cloudflared\*.json"
+$localCredentials = Get-ChildItem $credentialPath -ErrorAction SilentlyContinue
+
+# Check if we have local keys for the default tunnel
+$hasKeys = $false
+if ($localCredentials) {
+    # This is a bit simplified, but checks if any json exists which usually means a tunnel was created here
+    $hasKeys = $true
+}
+
+$tunnelExistsInCloud = cloudflared tunnel list | Select-String $tunnelName
+
+if (-not $tunnelExistsInCloud -or -not $hasKeys) {
+    if ($tunnelExistsInCloud -and -not $hasKeys) {
+        Write-Host "Warning: Tunnel '$tunnelName' exists on Cloudflare but NO secret keys found on this machine." -ForegroundColor Yellow
+        $tunnelName = Read-Host "Enter a NEW unique tunnel name for this machine (e.g. mp3-rdp-tunnel)"
+        if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
+    }
+    
+    Write-Host "Creating Cloudflare Tunnel: $tunnelName..." -ForegroundColor Yellow
+    cloudflared tunnel create $tunnelName
 } else {
-    Write-Host 'Tunnel mp3-tunnel already exists, skipping creation.' -ForegroundColor Green
+    Write-Host "Tunnel '$tunnelName' already exists locally and on Cloudflare. Ready to run." -ForegroundColor Green
 }
 
 # Cleanup existing processes to free up ports
@@ -213,8 +230,8 @@ Write-Host 'SETUP COMPLETE!' -ForegroundColor Green
 Write-Host '1. Run this command to start your server:'
 Write-Host '   npm start' -ForegroundColor Yellow
 Write-Host ''
-Write-Host '2. To put your site online, open a NEW terminal and run:'
-Write-Host '   cloudflared tunnel run --url http://localhost:8000 mp3-tunnel' -ForegroundColor Yellow
+Write-Host "2. To put your site online, open a NEW terminal and run:"
+Write-Host "   cloudflared tunnel run --url http://localhost:8000 $tunnelName" -ForegroundColor Yellow
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser

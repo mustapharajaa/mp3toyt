@@ -124,21 +124,42 @@ echo "-----------------------------------"
 cloudflared tunnel login
 
 echo "--- Cloudflare Tunnel Setup ---"
-# Check if tunnel already exists
-if ! cloudflared tunnel list | grep -q "mp3-tunnel"; then
-    echo "Creating Cloudflare Tunnel: mp3-tunnel..."
-    cloudflared tunnel create mp3-tunnel
+TUNNEL_NAME="mp3-tunnel"
+# Check if any secret json exists in ~/.cloudflared (crude check for local keys)
+if [ -z "$(ls -A ~/.cloudflared/*.json 2>/dev/null)" ]; then
+    HAS_KEYS=false
+else
+    HAS_KEYS=true
+fi
+
+# Check if tunnel already exists on Cloudflare servers
+if cloudflared tunnel list | grep -q "$TUNNEL_NAME"; then
+    TUNNEL_EXISTS_IN_CLOUD=true
+else
+    TUNNEL_EXISTS_IN_CLOUD=false
+fi
+
+if [ "$TUNNEL_EXISTS_IN_CLOUD" = false ] || [ "$HAS_KEYS" = false ]; then
+    if [ "$TUNNEL_EXISTS_IN_CLOUD" = true ] && [ "$HAS_KEYS" = false ]; then
+        echo "Warning: Tunnel '$TUNNEL_NAME' exists on Cloudflare but NO secret keys found on this machine."
+        read -p "Enter a NEW unique tunnel name for this machine (e.g. mp3-rdp-tunnel): " NEW_TUNNEL_NAME
+        TUNNEL_NAME=${NEW_TUNNEL_NAME:-mp3-rdp-tunnel}
+    fi
+    echo "Creating Cloudflare Tunnel: $TUNNEL_NAME..."
+    cloudflared tunnel create "$TUNNEL_NAME"
+else
+    echo "Tunnel '$TUNNEL_NAME' already exists locally and on Cloudflare. Ready to run."
 fi
 
 # Extract domain for DNS routing (remove https://)
 DOMAIN_ONLY=$(echo "$USER_DOMAIN" | sed -E 's|https?://||' | sed -E 's|/.*||')
-echo "Routing domain $DOMAIN_ONLY to tunnel..."
-cloudflared tunnel route dns -f mp3-tunnel "$DOMAIN_ONLY"
+echo "Routing domain $DOMAIN_ONLY to tunnel $TUNNEL_NAME..."
+cloudflared tunnel route dns -f "$TUNNEL_NAME" "$DOMAIN_ONLY"
 
 # Start Tunnel with PM2
 echo "Starting Cloudflare Tunnel background process..."
 pm2 delete cf-tunnel 2>/dev/null || true
-pm2 start cloudflared --name cf-tunnel -- tunnel run mp3-tunnel
+pm2 start cloudflared --name cf-tunnel -- tunnel run "$TUNNEL_NAME"
 pm2 save
 
 echo "-----------------------------------"
