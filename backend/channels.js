@@ -37,7 +37,10 @@ async function getChannelsForUser(username) {
     return userChannels.map(channel => ({
         channelId: channel.channelId,
         channelTitle: channel.channelTitle,
-        thumbnail: channel.thumbnail
+        thumbnail: channel.thumbnail,
+        platform: channel.platform || 'youtube',
+        socialAccountId: channel.socialAccountId,
+        bundleInstanceId: channel.bundleInstanceId
     }));
 }
 
@@ -61,7 +64,7 @@ async function saveChannel(channelData, username) {
         }
     }
 
-    const existingIndex = allData.channels.findIndex(c => c.channelId === channelData.channelId && c.username === username);
+    const existingIndex = allData.channels.findIndex(c => c.channelId === channelData.channelId);
     const now = new Date().toISOString();
     const channel = {
         ...channelData,

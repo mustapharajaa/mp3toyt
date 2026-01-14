@@ -57,6 +57,51 @@ fs.ensureDirSync(TEMP_BASE_DIR);
 fs.ensureDirSync(LOGOS_DIR);
 fs.ensureDirSync(FALLBACK_THUMBNAILS_DIR);
 
+// --- Bundle.social Slot Management (Auto-Disconnect) ---
+const lastActivityMap = new Map(); // Username -> Last Activity Timestamp
+const BUNDLE_INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Cleanup inactive Bundle.social slots every minute.
+ */
+setInterval(async () => {
+    const now = Date.now();
+    for (const [username, lastTime] of lastActivityMap.entries()) {
+        if (now - lastTime > BUNDLE_INACTIVITY_LIMIT) {
+            console.log(`[Bundle Cleanup] User ${username} inactive for >10 mins. Freeing slots...`);
+            lastActivityMap.delete(username);
+            await disconnectUserBundleChannels(username);
+        }
+    }
+}, 60000);
+
+async function disconnectUserBundleChannels(username) {
+    if (!username || username === 'guest') return;
+    try {
+        const userChannels = await mp3toytChannels.getChannelsForUser(username);
+        const bundleChannels = userChannels.filter(c => !!c.socialAccountId);
+
+        if (bundleChannels.length === 0) return;
+
+        console.log(`[Bundle Cleanup] Disconnecting ${bundleChannels.length} channels for ${username}`);
+
+        for (const ch of bundleChannels) {
+            if (ch.bundleInstanceId !== undefined) {
+                await bundleApi.disconnectPlatform(ch.bundleInstanceId, ch.platform);
+            }
+            // Remove from local database
+            await mp3toytChannels.deleteChannel(ch.channelId);
+        }
+    } catch (err) {
+        console.error(`[Bundle Cleanup] Failed to disconnect channels for ${username}:`, err.message);
+    }
+}
+
+function refreshActivity(username) {
+    if (!username || username === 'guest') return;
+    lastActivityMap.set(username, Date.now());
+}
+
 /**
  * Picks a random image from the fallback thumbnails directory.
  */
@@ -396,6 +441,7 @@ router.post('/upload-file', (req, res) => {
             }
 
             const username = req.session && req.session.username ? req.session.username : 'guest';
+            refreshActivity(username);
             const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
             await fs.ensureDir(sessionDir);
 
@@ -524,24 +570,14 @@ router.get('/channels', async (req, res) => {
                 return {
                     ...c,
                     thumbnail: isCached ? localLogoUrl : c.thumbnail,
-                    platform: 'youtube'
+                    platform: c.platform || 'youtube'
                 };
             }));
 
             allChannels = processedYtChannels;
         }
 
-        // Facebook Accounts/Pages
-
-        // Facebook Accounts/Pages (via Bundle.social)
-        try {
-            const fbChannels = await bundleApi.getFacebookChannels();
-            allChannels = [...allChannels, ...fbChannels];
-        } catch (fbError) {
-            console.error('[Channels] Failed to load Facebook channels from Bundle:', fbError);
-        }
-
-
+        // Return only channels associated with this user in our local database
         res.json(allChannels);
     } catch (error) {
         console.error('Error reading channels file:', error);
@@ -873,10 +909,22 @@ async function processVideoQueue() {
     if (isProcessingVideo || videoQueue.length === 0) return;
     isProcessingVideo = true;
     const job = videoQueue.shift();
-    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform, overlay, plan } = job;
+    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay, plan, username } = job;
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
+        // 1. Resolve channel metadata from local records as the source of truth
+        const userChannels = await mp3toytChannels.getChannelsForUser(username);
+        const channelMeta = userChannels.find(c => c.channelId === channelId);
+
+        if (!channelMeta) {
+            throw new Error(`Channel ${channelId} not found for user ${username}.`);
+        }
+
+        const platform = channelMeta.platform || 'youtube';
+        const isBundle = !!channelMeta.socialAccountId;
+        const bundleInstanceId = channelMeta.bundleInstanceId;
+
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
         const creationStartTime = Date.now();
         await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
@@ -888,36 +936,35 @@ async function processVideoQueue() {
         let uploadResult;
         let videoUrl;
 
-        if (platform === 'facebook') {
-            // Facebook Upload via Bundle.social
-            console.log(`[Queue] Starting Facebook workflow for session ${sessionId}`);
-            jobStatus[sessionId].message = 'Uploading to facebook...';
+        if (isBundle) {
+            // Bundle.social Upload (Facebook or YouTube)
+            console.log(`[Queue] Uploading to Bundle.social (${platform}) via instance ${bundleInstanceId}: ${outputVideoPath}`);
+            jobStatus[sessionId].message = `Uploading to ${platform}...`;
+            const mediaId = await bundleApi.uploadVideo(bundleInstanceId, outputVideoPath);
 
-            // 1. Upload Video
-            console.log(`[Queue] Uploading file to Bundle.social: ${outputVideoPath}`);
-            const mediaId = await bundleApi.uploadVideo(outputVideoPath);
-            console.log(`[Queue] Bundle.social upload finished. Media ID: ${mediaId}`);
+            if (!mediaId) throw new Error('Failed to upload to Bundle.social');
 
-            if (!mediaId) throw new Error('Failed to upload video to Bundle.social');
-
-            jobStatus[sessionId].message = 'Publishing to Facebook...';
-
-            // 2. Create Post in Background (Don't await to avoid timeout)
-            console.log(`[Queue] Starting Facebook post in background...`);
+            jobStatus[sessionId].message = `Publishing to ${platform}...`;
             const postText = `${title}\n\n${description || ''}`;
 
-            bundleApi.postToFacebook(channelId, mediaId, postText, publishAt)
-                .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
-                .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
+            if (platform === 'facebook') {
+                bundleApi.postToFacebook(bundleInstanceId, channelId, mediaId, postText, publishAt)
+                    .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
+                    .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
+            } else {
+                bundleApi.postToYoutube(bundleInstanceId, channelId, mediaId, postText, publishAt)
+                    .then(res => console.log(`[Queue] Background Bundle YouTube post result:`, JSON.stringify(res)))
+                    .catch(err => console.error(`[Queue] Background Bundle YouTube post failed:`, err.message));
+            }
 
             uploadResult = {
                 success: true,
-                data: { id: mediaId }, // Use mediaId as placeholder
-                url: `https://bundle.social/dashboard` // Direct to dashboard since post ID is async
+                data: { id: mediaId },
+                url: `https://bundle.social/dashboard`
             };
-
         } else {
-            // YouTube Upload
+            // Direct YouTube API (Only for admin or specific claimed direct channels)
+            console.log(`[Queue] Using direct YouTube API for user: ${username}`);
             const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
             const videoMetadata = {
                 title,
@@ -933,6 +980,9 @@ async function processVideoQueue() {
         }
 
         if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
+
+        // Refresh activity on successful upload
+        refreshActivity(username);
 
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);
 
@@ -1042,11 +1092,13 @@ router.post('/create-video', upload.none(), async (req, res) => {
         const audioPath = path.join(sessionDir, audioFilename);
         const imagePath = path.join(sessionDir, imageFilename);
 
-        const plan = req.session && req.session.plan ? req.session.plan : 'free'; // Default to free if not set
-        console.log(`[Queue] Adding job for user: ${req.session ? req.session.username : 'guest'} (Plan: ${plan})`);
+        const plan = req.session && req.session.plan ? req.session.plan : 'free';
+        const usernameForActivity = req.session && req.session.username ? req.session.username : 'guest';
+        console.log(`[Queue] Adding job for user: ${usernameForActivity} (Plan: ${plan})`);
+        refreshActivity(usernameForActivity);
 
         jobStatus[sessionId] = { status: 'queued', message: 'Your video is in the queue.' };
-        videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform: platform || 'youtube', overlay, plan });
+        videoQueue.push({ sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, platform: platform || 'youtube', overlay, plan, username });
 
         // Start processing the queue, but don't block the response.
         try {
@@ -1224,7 +1276,8 @@ router.post('/start-automation', async (req, res) => {
                     publishAt,
                     channelId: targetChannel.channelId,
                     platform,
-                    plan: req.session.plan || 'free'
+                    plan: req.session.plan || 'free',
+                    username
                 });
 
                 // Increment and save stats
@@ -1277,18 +1330,30 @@ router.get('/job-status/:sessionId', (req, res) => {
 
 // --- Authentication Routes ---
 
-router.get('/auth/mp3toyt', (req, res) => {
+router.get('/auth/mp3toyt', async (req, res) => {
     try {
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+
+        if (username !== 'erraja') {
+            console.log(`[Auth] Redirecting regular user ${username} to Bundle.social for YouTube`);
+            const redirectUri = getRedirectUri(req, '/auth/youtube/callback');
+            const connectUrl = await bundleApi.getYoutubeConnectUrl(redirectUri);
+            if (!connectUrl) throw new Error('Could not generate Bundle.social YouTube connect URL');
+            return res.redirect(connectUrl);
+        }
+
         // Generate the redirect URI based on the request host
-        // This allows it to work on localhost or a real domain
         const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
-        console.log(`[Auth] Generating URL with redirect: ${redirectUri}`);
+        console.log(`[Auth] Generating URL for erraja with redirect: ${redirectUri}`);
 
         // getAuthUrl should accept (redirectUri, context)
         const authUrl = getAuthUrl(redirectUri, 'mp3toyt');
         res.redirect(authUrl);
     } catch (error) {
         console.error('[Auth Error]', error);
+        if (error.message.includes('No available Bundle.social slots')) {
+            return res.status(503).send('we coldnt connet to account. Please try again later.');
+        }
         res.status(500).send(`
             <!DOCTYPE html>
             <html>
@@ -1415,29 +1480,103 @@ router.get('/auth/facebook', async (req, res) => {
         res.redirect(connectUrl);
     } catch (error) {
         console.error('[Bundle Auth Error]', error);
+        if (error.message.includes('No available Bundle.social slots')) {
+            return res.status(503).send('we coldnt conect to facebook. Please try again in 10 minutes.');
+        }
         res.status(500).send('Facebook Authentication Initialization Failed');
     }
 });
 
+// Utility to claim channels from Bundle.social for the current user
+async function claimBundleChannels(username) {
+    if (!username || username === 'guest') return [];
+    try {
+        console.log(`[Bundle Claim] Claiming channels for user: ${username}`);
+        refreshActivity(username); // Connect counts as activity
+        const bundleChannels = await bundleApi.getConnectedChannels();
+        const claimedIds = [];
+        for (const ch of bundleChannels) {
+            await mp3toytChannels.saveChannel({
+                channelId: ch.channelId,
+                channelTitle: ch.channelTitle,
+                thumbnail: ch.thumbnail,
+                platform: ch.platform,
+                socialAccountId: ch.socialAccountId,
+                bundleInstanceId: ch.bundleInstanceId
+            }, username);
+            claimedIds.push(ch.channelId);
+        }
+        console.log(`[Bundle Claim] Successfully claimed ${bundleChannels.length} channels for user: ${username}`);
+        return claimedIds;
+    } catch (err) {
+        console.error(`[Bundle Claim] Failed for ${username}:`, err.message);
+        return [];
+    }
+}
+
 router.get('/auth/facebook/callback', async (req, res) => {
     // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
-    // We just need to close the popup or redirect them back.
-    // The frontend can then refresh the channel list.
+    const username = req.session && req.session.username ? req.session.username : 'guest';
+
+    // Attempt to claim any new channels
+    let newChannelId = '';
+    if (username !== 'guest') {
+        const claimed = await claimBundleChannels(username);
+        if (claimed.length > 0) newChannelId = claimed[0];
+    }
 
     res.send(`
         <html>
-            <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5;">
-                <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center;">
-                    <h2 style="color: #1877f2;">Connected!</h2>
-                    <p>Your Facebook account has been connected via Bundle.social.</p>
-                    <p>You can close this window now.</p>
-                    <script>
-                        if (window.opener && window.opener.loadChannels) {
-                            window.opener.loadChannels();
-                        }
-                        setTimeout(() => window.close(), 2000);
-                    </script>
-                </div>
+            <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0;">
+                <script>
+                    window.newChannelId = "${newChannelId}";
+                    if (window.opener) {
+                        // Refresh the main app with a success parameter to trigger notification
+                        window.opener.location.href = '/app?success=facebook' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                        window.close();
+                    } else {
+                        // Not a popup? Redirect current window
+                        window.location.href = '/app?success=facebook' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                    }
+                    
+                    // Fallback UI
+                    setTimeout(() => {
+                        document.body.innerHTML = '<div style="text-align:center;"><h2>Connected!</h2><p>Returning to app...</p></div>';
+                        if (!window.opener) window.location.href = '/app?success=facebook' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                    }, 500);
+                </script>
+            </body>
+        </html>
+    `);
+});
+
+router.get('/auth/youtube/callback', async (req, res) => {
+    const username = req.session && req.session.username ? req.session.username : 'guest';
+    let newChannelId = '';
+    if (username !== 'guest') {
+        const claimed = await claimBundleChannels(username);
+        if (claimed.length > 0) newChannelId = claimed[0];
+    }
+    res.send(`
+        <html>
+            <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0;">
+                <script>
+                    window.newChannelId = "${newChannelId}";
+                    if (window.opener) {
+                        // Refresh the main app with a success parameter to trigger notification
+                        window.opener.location.href = '/app?success=youtube' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                        window.close();
+                    } else {
+                        // Not a popup? Redirect current window
+                        window.location.href = '/app?success=youtube' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                    }
+
+                    // Fallback UI
+                    setTimeout(() => {
+                        document.body.innerHTML = '<div style="text-align:center;"><h2>Connected!</h2><p>Returning to app...</p></div>';
+                        if (!window.opener) window.location.href = '/app?success=youtube' + (window.newChannelId ? '&new_channel_id=' + window.newChannelId : '');
+                    }, 500);
+                </script>
             </body>
         </html>
     `);
@@ -1454,14 +1593,19 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
     }
 
     try {
+        // Capture the username from the current session
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+
+        if (username !== 'erraja') {
+            console.warn(`[Auth] Blocked non-admin user ${username} from direct YouTube OAuth callback`);
+            return res.status(403).send('Direct YouTube API access is restricted to admin only. Please use Bundle.social.');
+        }
+
         // Exchange code for tokens
         const savedAuth = await saveTokenFromCode(code, redirectUri);
 
         if (savedAuth && savedAuth.channelId) {
             console.log(`[Auth] Authenticated channel: ${savedAuth.channelTitle} (${savedAuth.channelId})`);
-
-            // Capture the username from the current session
-            const username = req.session && req.session.username ? req.session.username : 'guest';
 
             const channelData = {
                 channelId: savedAuth.channelId,
@@ -1493,41 +1637,46 @@ router.post('/delete-channel', async (req, res) => {
     console.log(`[Delete Channel] Request to remove channel: ${channelId}`);
 
     try {
-        // 1. Remove from channels.json
-        if (await fs.exists(CHANNELS_PATH)) {
-            const data = await fs.readJson(CHANNELS_PATH);
-            if (data.channels) {
-                const initialLength = data.channels.length;
-                const channelToDelete = data.channels.find(c => c.channelId === channelId);
+        // 1. Find the channel first to get metadata (Bundle ID, platform)
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const userChannels = await mp3toytChannels.getChannelsForUser(username);
+        const channelToDelete = userChannels.find(c => c.channelId === channelId);
 
-                data.channels = data.channels.filter(c => c.channelId !== channelId);
-
-                if (data.channels.length < initialLength) {
-                    await fs.writeJson(CHANNELS_PATH, data, { spaces: 2 });
-                    console.log(`[Delete Channel] Removed from ${CHANNELS_PATH}`);
-
-                    // Delete the cached logo file
-                    if (channelToDelete) {
-                        const platform = channelToDelete.platform || 'youtube';
-                        const logoName = `${platform}_${channelId}.jpg`;
-                        const logoPath = path.join(LOGOS_DIR, logoName);
-                        if (await fs.pathExists(logoPath)) {
-                            await fs.remove(logoPath);
-                            console.log(`[Delete Channel] Deleted cached logo: ${logoName}`);
-                        }
-                    }
-                }
-            }
+        if (!channelToDelete) {
+            return res.status(404).json({ success: false, error: 'Channel not found or not owned by you' });
         }
 
-        // 2. Remove from tokens.json (Actual Auth Revocation from app)
-        if (await fs.exists(TOKEN_PATH)) {
-            let tokens = await fs.readJson(TOKEN_PATH);
-            const initialLength = tokens.length;
-            tokens = tokens.filter(t => t.channelId !== channelId);
-            if (tokens.length < initialLength) {
-                await fs.writeJson(TOKEN_PATH, tokens, { spaces: 2 });
-                console.log(`[Delete Channel] Removed from ${TOKEN_PATH}`);
+        console.log(`[Delete Channel] user ${username} removing channel: ${channelId} (${channelToDelete.platform})`);
+
+        // 2. If it's a Bundle.social channel, disconnect it from their API (Non-blocking for speed)
+        if (channelToDelete.socialAccountId && channelToDelete.bundleInstanceId !== undefined) {
+            console.log(`[Delete Channel] Backgrounding Bundle.social disconnection for instance ${channelToDelete.bundleInstanceId}`);
+            bundleApi.disconnectPlatform(channelToDelete.bundleInstanceId, channelToDelete.platform)
+                .then((res) => {
+                    if (res && res.success) {
+                        console.log(`[Delete Channel] ✅ Background disconnect success for instance ${channelToDelete.bundleInstanceId}`);
+                    } else {
+                        console.warn(`[Delete Channel] ⚠️ Background disconnect reported issue: ${res ? res.error : 'Unknown'}`);
+                    }
+                })
+                .catch(bundleErr => {
+                    console.warn(`[Delete Channel] ❌ Background Bundle API disconnect crashed:`, bundleErr.message);
+                });
+        }
+
+        // 3. Remove from channels.json
+        await mp3toytChannels.deleteChannel(channelId);
+
+        // 4. Remove from tokens.json (if it exists there - for erraja direct accounts)
+        if (username === 'erraja') {
+            if (await fs.exists(TOKEN_PATH)) {
+                let tokens = await fs.readJson(TOKEN_PATH);
+                const initialLength = tokens.length;
+                tokens = tokens.filter(t => t.channelId !== channelId);
+                if (tokens.length < initialLength) {
+                    await fs.writeJson(TOKEN_PATH, tokens, { spaces: 2 });
+                    console.log(`[Delete Channel] Removed from ${TOKEN_PATH}`);
+                }
             }
         }
 

@@ -22,5 +22,77 @@
     "role": "user",
     "plan": "free",
     "createdAt": "2026-01-13T21:15:25.723Z"
+  },
+  {
+    "id": "05610eac-2540-4c78-9abd-ba42d638496a",
+    "username": "errajaw",
+    "password": "$2b$10$Ex7ZJ.8btcQSOUMzGNJ0hOtKulAQCTUlS4xnLEa4/z4fcU1TG1FMu",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T09:29:28.572Z"
+  },
+  {
+    "id": "9fc27ede-9cd8-41e8-acc4-0191772b3a20",
+    "username": "na",
+    "password": "$2b$10$cA1ywhDYICgNKmO4tFwjpOKnEn.Y2T/I1Co3yPLDsTDVFkSXQta52",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T09:44:34.383Z"
+  },
+  {
+    "id": "9c5b061b-5570-43d1-936a-2ad50930dab1",
+    "username": "mm",
+    "password": "$2b$10$3Edi55NoHit3mC7.KxuFiehSRnEYkdhModir89sBsjygwx5x20nfy",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T09:48:04.376Z"
+  },
+  {
+    "id": "fa3ed24a-1189-4c56-93a5-ea4bb3c9e16b",
+    "username": "llllllllll",
+    "password": "$2b$10$uO2N3/rGG3EGbWFcgSDHWOn0Flx7NebyTaEBLf1G8PTu/sg2vyXRO",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T10:20:53.079Z"
+  },
+  {
+    "id": "1cbb0c6b-8d6b-4818-88fb-33bd1fd251c0",
+    "username": "ll",
+    "password": "$2b$10$PLy1Kgz0VpkQ55vWCxRJHeXu2NcbXnDOOQ0NiNH1h5eqscmtmP2y6",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T16:15:15.863Z"
+  },
+  {
+    "id": "a691cb27-421a-4232-b7da-ce8be98c7ed4",
+    "username": "kk,",
+    "password": "$2b$10$bMXqNendbmUHRSXH2lKUI.j60VylV//BFbi/.ydsXclnjPTzBesiS",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T16:21:43.945Z"
+  },
+  {
+    "id": "54c45c36-94f9-474d-8cf8-c1ad84913069",
+    "username": "llk",
+    "password": "$2b$10$x5OH65FZ8F3Dg/QFmpxHc.5/qYcCdd8K0TGBWNj8VxOjrbL.VBlvW",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T16:35:41.132Z"
+  },
+  {
+    "id": "6fb0be94-4eff-46e5-af95-d1b0c28a0221",
+    "username": "aj",
+    "password": "$2b$10$3C1p3uxC.no0Il6j5l6M/O7bcv6.dbNmq60tN4Jv0wr6YyVeLnzVC",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T16:38:22.037Z"
+  },
+  {
+    "id": "85e9828c-4b24-4992-b059-bf0d1e83ac5c",
+    "username": "errajak",
+    "password": "$2b$10$BcGzI8ydCy9HfG/kOKj3JuFxUh0Hxw4JiV6F7gmkrne8BGBIdzfiC",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-14T16:46:43.348Z"
   }
 ]

@@ -1,49 +1,94 @@
-// Correct import based on package inspection
 import { Bundlesocial } from 'bundlesocial';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Fix for "does not provide an export named 'BundleSocial'" if it happens again:
-// It might be a default export in some versions.
-const apiKey = process.env.BUNDLE_API_KEY;
-if (!apiKey) console.warn('[Bundle] BUNDLE_API_KEY is missing in .env');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const USAGE_FILE = path.join(__dirname, '../bundle_usage.json');
 
-const bundle = new Bundlesocial(apiKey);
+// Handle multiple keys
+const apiKeysStr = process.env.BUNDLE_API_KEYS || process.env.BUNDLE_API_KEY || '';
+const API_KEYS = apiKeysStr.split(',').map(k => k.trim()).filter(k => k);
 
-// Cache team ID
-let cachedTeamId = null;
+if (API_KEYS.length === 0) {
+    console.warn('[Bundle] No API keys found in BUNDLE_API_KEYS or BUNDLE_API_KEY');
+}
 
-async function getTeamId() {
-    if (cachedTeamId) return cachedTeamId;
+// Initialize instances
+const instances = API_KEYS.map((key, index) => ({
+    id: index,
+    key,
+    bundle: new Bundlesocial(key),
+    cachedTeamId: null
+}));
+
+// Usage tracking
+let usageData = {};
+
+async function loadUsage() {
     try {
-        // Correct property from debug: "items"
-        const response = await bundle.team.teamGetList();
+        const data = await fs.readFile(USAGE_FILE, 'utf8');
+        usageData = JSON.parse(data);
+    } catch (e) {
+        usageData = {};
+    }
+}
+
+async function saveUsage() {
+    try {
+        await fs.writeFile(USAGE_FILE, JSON.stringify(usageData, null, 2));
+    } catch (e) {
+        console.error('[Bundle] Failed to save usage info:', e.message);
+    }
+}
+
+function getUsageForKey(key) {
+    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+    if (!usageData[key] || usageData[key].month !== currentMonth) {
+        usageData[key] = {
+            uploads: 0,
+            facebookConnected: false,
+            youtubeConnected: false,
+            month: currentMonth
+        };
+    }
+    return usageData[key];
+}
+
+// Ensure usage is loaded once
+let usageLoaded = false;
+async function ensureUsageLoaded() {
+    if (!usageLoaded) {
+        await loadUsage();
+        usageLoaded = true;
+    }
+}
+
+async function getTeamId(instance) {
+    if (instance.cachedTeamId) return instance.cachedTeamId;
+    try {
+        const response = await instance.bundle.team.teamGetList();
         if (response && response.items && response.items.length > 0) {
-            cachedTeamId = response.items[0].id;
-            console.log('[Bundle] Using Team ID:', cachedTeamId);
-            return cachedTeamId;
+            instance.cachedTeamId = response.items[0].id;
+            return instance.cachedTeamId;
         }
 
-        // If we found nothing, try to create one
-        console.log('[Bundle] No teams found. Creating team...');
-        const created = await bundle.team.teamCreateTeam({
+        const created = await instance.bundle.team.teamCreateTeam({
             requestBody: { name: 'MP3toYT Team' }
         });
         if (created && created.id) {
-            cachedTeamId = created.id;
-            return cachedTeamId;
+            instance.cachedTeamId = created.id;
+            return instance.cachedTeamId;
         }
         return null;
     } catch (error) {
-        // Handle 403 Social sets limit reached - This usually means there IS a team but we couldn't list it 
-        // OR the response structure is still tricky.
         if (error.status === 403 && error.body && error.body.message.includes('Limit is 1')) {
-            console.warn('[Bundle] Team creation limit reached. Retrying to find the existing team via Organization...');
             try {
-                const org = await bundle.organization.organizationGetOrganization();
+                const org = await instance.bundle.organization.organizationGetOrganization();
                 if (org && org.teams && org.teams.length > 0) {
-                    cachedTeamId = org.teams[0].id;
-                    return cachedTeamId;
+                    instance.cachedTeamId = org.teams[0].id;
+                    return instance.cachedTeamId;
                 }
             } catch (orgErr) {
                 console.error('[Bundle] Failed to fetch organization as fallback:', orgErr);
@@ -54,194 +99,240 @@ async function getTeamId() {
     }
 }
 
-
-
 /**
- * Generates the URL for a user to connect their Facebook account.
+ * Finds an available API key instance for a specific platform.
  */
+export async function getAvailableInstance(platform) {
+    await ensureUsageLoaded();
+    const platformField = platform.toLowerCase() === 'facebook' ? 'facebookConnected' : 'youtubeConnected';
+
+    for (const inst of instances) {
+        const usage = getUsageForKey(inst.key);
+        // User rule: < 100 uploads and slot must be free
+        if (usage.uploads < 100 && !usage[platformField]) {
+            return inst;
+        }
+    }
+    return null; // All slots full or limit reached
+}
+
+export function getInstanceById(id) {
+    const idx = parseInt(id);
+    if (isNaN(idx) || idx < 0 || idx >= instances.length) return null;
+    return instances[idx];
+}
+
 export async function getFacebookConnectUrl(redirectUrl) {
+    const inst = await getAvailableInstance('FACEBOOK');
+    if (!inst) throw new Error('No available Bundle.social slots for Facebook');
+    return getConnectUrl(inst, redirectUrl, 'FACEBOOK');
+}
+
+export async function getYoutubeConnectUrl(redirectUrl) {
+    const inst = await getAvailableInstance('YOUTUBE');
+    if (!inst) throw new Error('No available Bundle.social slots for YouTube');
+    return getConnectUrl(inst, redirectUrl, 'YOUTUBE');
+}
+
+async function getConnectUrl(instance, redirectUrl, type) {
     try {
-        const teamId = await getTeamId();
+        const teamId = await getTeamId(instance);
         if (!teamId) return null;
 
-        const response = await bundle.socialAccount.socialAccountConnect({
+        const response = await instance.bundle.socialAccount.socialAccountConnect({
             requestBody: {
                 teamId: teamId,
-                type: 'FACEBOOK',
+                type: type,
                 redirectUrl: redirectUrl
             }
         });
 
         if (response && response.url) {
+            // Include instance ID in redirect URL if needed? 
+            // Or just resolve it during claim based on which key currently has that account.
             return response.url;
         }
         return null;
     } catch (error) {
-        if (error.body && error.body.issues) console.error('[Bundle] Connect URL Error Issues:', JSON.stringify(error.body.issues, null, 2));
-        console.error('[Bundle] Error generating connect URL:', error);
+        console.error(`[Bundle] Error generating ${type} connect URL:`, error);
         return null;
     }
 }
 
-/**
- * Fetches connected Facebook accounts and their pages (Channels).
- */
-export async function getFacebookChannels() {
-    try {
-        const teamId = await getTeamId();
-        if (!teamId) return [];
+export async function getConnectedChannels() {
+    // This is tricky: we need to check ALL keys to see which ones now have accounts
+    // and update our usage tracking.
+    await ensureUsageLoaded();
+    let allChannels = [];
 
-        const teamRes = await bundle.team.teamGetTeam({ id: teamId });
-        const socialAccounts = teamRes.socialAccounts || [];
-        const fbAccounts = socialAccounts.filter(acc => acc.type === 'FACEBOOK');
+    for (const inst of instances) {
+        try {
+            const teamId = await getTeamId(inst);
+            if (!teamId) continue;
 
-        let allChannels = [];
-        for (const account of fbAccounts) {
-            if (account.channels && account.channels.length > 0) {
-                const mapped = account.channels.map(ch => ({
+            const teamRes = await inst.bundle.team.teamGetTeam({ id: teamId });
+            const socialAccounts = teamRes.socialAccounts || [];
+
+            const usage = getUsageForKey(inst.key);
+            usage.facebookConnected = socialAccounts.some(acc => acc.type === 'FACEBOOK');
+            usage.youtubeConnected = socialAccounts.some(acc => acc.type === 'YOUTUBE');
+
+            for (const account of socialAccounts) {
+                if (account.type !== 'FACEBOOK' && account.type !== 'YOUTUBE') continue;
+                const platform = account.type.toLowerCase();
+                const mapped = (account.channels || [{ id: account.id, name: account.name }]).map(ch => ({
                     channelId: ch.id,
                     channelTitle: ch.name || account.name,
-                    thumbnail: ch.pictureUrl || account.pictureUrl || 'https://www.facebook.com/favicon.ico',
-                    platform: 'facebook',
-                    socialAccountId: account.id
+                    thumbnail: ch.pictureUrl || account.pictureUrl || (platform === 'facebook' ? 'https://www.facebook.com/favicon.ico' : 'https://www.youtube.com/favicon.ico'),
+                    platform: platform,
+                    socialAccountId: account.id,
+                    bundleInstanceId: inst.id // Store which key this belongs to
                 }));
                 allChannels = allChannels.concat(mapped);
-            } else {
-                allChannels.push({
-                    channelId: account.id,
-                    channelTitle: account.name,
-                    thumbnail: account.pictureUrl || 'https://www.facebook.com/favicon.ico',
-                    platform: 'facebook',
-                    socialAccountId: account.id
-                });
             }
+        } catch (err) {
+            console.error(`[Bundle] Error checking Key ${inst.id}:`, err.message);
         }
-        return allChannels;
-    } catch (error) {
-        if (error.body && error.body.issues) console.error('[Bundle] Channel List Error Issues:', JSON.stringify(error.body.issues, null, 2));
-        console.error('[Bundle] Error listing channels:', error);
-        return [];
     }
+    await saveUsage();
+    return allChannels;
 }
 
-async function ensureActiveChannel(socialAccountId, channelId) {
+export async function uploadVideo(instanceId, filePath) {
+    const inst = getInstanceById(instanceId);
+    if (!inst) throw new Error('Invalid Bundle instance ID');
+
     try {
-        const teamId = await getTeamId();
-        const requestBody = {
-            teamId: teamId,
-            type: 'FACEBOOK',
-            channelId: channelId
-        };
-        console.log('[Bundle] Setting active channel:', JSON.stringify(requestBody));
-
-        await bundle.socialAccount.socialAccountSetChannel({
-            requestBody: requestBody
-        });
-    } catch (error) {
-        if (error.body && error.body.issues) console.error('[Bundle] Set Channel Error Issues:', JSON.stringify(error.body.issues, null, 2));
-        console.warn('[Bundle] Failed to set active channel, might already be set or invalid:', error.message);
-    }
-}
-
-
-/**
- * Uploads a video file to Bundle.social
- */
-export async function uploadVideo(filePath) {
-    try {
-        const teamId = await getTeamId();
+        const teamId = await getTeamId(inst);
         if (!teamId) throw new Error('No Team ID');
 
         const fileBuffer = await fs.readFile(filePath);
-        const fileSizeMb = (fileBuffer.length / (1024 * 1024)).toFixed(2);
         const fileName = path.basename(filePath);
         const isImage = /\.(jpg|jpeg|png)$/i.test(fileName);
         const mimeType = isImage ? 'image/jpeg' : 'video/mp4';
 
-        console.log(`[Bundle] Starting upload: ${fileName} (${fileSizeMb} MB)...`);
-        const startTime = Date.now();
-
-        const response = await bundle.upload.uploadCreate({
+        const response = await inst.bundle.upload.uploadCreate({
             formData: {
                 teamId: teamId,
                 file: new Blob([fileBuffer], { type: mimeType })
             }
         });
 
-        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-        console.log(`[Bundle] Upload finished in ${duration}s. Media ID: ${response.id}`);
-
-        if (response && response.id) {
-            return response.id;
-        }
-
+        if (response && response.id) return response.id;
         return null;
     } catch (error) {
-        if (error.body && error.body.issues) console.error('[Bundle] Upload Error Issues:', JSON.stringify(error.body.issues, null, 2));
         console.error('[Bundle] Error uploading video:', error);
         throw error;
     }
 }
 
-/**
- * Creates a post on Facebook
- */
-export async function postToFacebook(channelId, mediaId, text, scheduledDate = null) {
+export async function postToFacebook(instanceId, channelId, mediaId, text, scheduledDate = null) {
+    return postToPlatform(instanceId, 'FACEBOOK', channelId, mediaId, text, scheduledDate);
+}
+
+export async function postToYoutube(instanceId, channelId, mediaId, text, scheduledDate = null) {
+    return postToPlatform(instanceId, 'YOUTUBE', channelId, mediaId, text, scheduledDate);
+}
+
+async function postToPlatform(instanceId, type, channelId, mediaId, text, scheduledDate = null) {
+    const inst = getInstanceById(instanceId);
+    if (!inst) throw new Error('Invalid Bundle instance ID');
+
     try {
-        const teamId = await getTeamId();
-        const teamRes = await bundle.team.teamGetTeam({ id: teamId });
+        const teamId = await getTeamId(inst);
+        const teamRes = await inst.bundle.team.teamGetTeam({ id: teamId });
         const socialAccounts = teamRes.socialAccounts || [];
 
         const account = socialAccounts.find(acc =>
-            acc.type === 'FACEBOOK' &&
+            acc.type === type &&
             (acc.id === channelId || (acc.channels && acc.channels.find(c => c.id === channelId)))
         );
 
-        if (!account) throw new Error('Social account not found for this channel ID');
+        if (!account) throw new Error(`${type} social account not found for this channel ID`);
 
-        // Set active channel if it's a sub-channel
-        // We do this but ignore failures if the post itself works fine
-        if (channelId !== account.id) {
-            await ensureActiveChannel(account.id, channelId);
+        // Check if we actually need to change the channel on this account
+        // If type is YOUTUBE, the account might have multiple channels, our selected channelId needs to be 'set' as active.
+        let needsSetChannel = false;
+        if (type === 'YOUTUBE' && channelId !== account.id) {
+            // Check if it's already the primary channel
+            if (!account.primaryChannel || account.primaryChannel.id !== channelId) {
+                needsSetChannel = true;
+            }
         }
 
-        // Handle empty or whitespace text
-        const safeText = text && text.trim() ? text : 'New video upload from MP3toYT';
-        const safeTitle = safeText.substring(0, 50).trim() || 'New Video Post';
-
-        // Use user-provided date or create a small buffer (10 seconds) for extra safety
-        let postDate = scheduledDate;
-        if (!postDate) {
-            postDate = new Date(Date.now() + 10000).toISOString();
+        if (needsSetChannel) {
+            try {
+                await inst.bundle.socialAccount.socialAccountSetChannel({
+                    requestBody: { teamId, type, channelId }
+                });
+            } catch (setErr) {
+                console.warn(`[Bundle] Warning setting channel (might be already set):`, setErr.message);
+                // Continue anyway as the primary check might have missed a state or it's harmless
+            }
         }
 
-        const response = await bundle.post.postCreate({
+        const [rawTitle, ...descParts] = (text || '').split('\n\n');
+        const rawDescription = descParts.join('\n\n');
+        const safeTitle = (rawTitle || 'new nusic video').substring(0, 100);
+        const safeText = rawDescription || '';
+
+        const postDate = scheduledDate || new Date(Date.now() + 10000).toISOString();
+
+        let platformData = {};
+        if (type === 'FACEBOOK') {
+            platformData.FACEBOOK = { text, uploadIds: [mediaId], privacy: 'PUBLIC' };
+        } else {
+            platformData.YOUTUBE = { type: 'VIDEO', text: safeTitle, description: safeText, uploadIds: [mediaId], privacy: 'PUBLIC' };
+        }
+
+        const response = await inst.bundle.post.postCreate({
             requestBody: {
                 teamId: teamId,
                 title: safeTitle,
-                socialAccountTypes: ['FACEBOOK'],
+                socialAccountTypes: [type],
                 postDate: postDate,
                 status: 'SCHEDULED',
-                data: {
-                    FACEBOOK: {
-                        text: safeText,
-                        uploadIds: [mediaId],
-                        privacy: 'PUBLIC'
-                    }
-                }
+                data: platformData
             }
         });
 
-        // The live URL isn't immediately available for scheduled posts.
-        // We link to the Bundle.social dashboard instead so UI link isn't broken.
+        // Update usage
+        const usage = getUsageForKey(inst.key);
+        usage.uploads++;
+        await saveUsage();
+
         return {
             success: true,
             data: response,
             url: `https://bundle.social/teams/${teamId}/posts/${response.id}`
         };
     } catch (error) {
-        if (error.body && error.body.issues) console.error('[Bundle] Post Validation Errors:', JSON.stringify(error.body.issues, null, 2));
-        console.error('[Bundle] Error creating post:', error);
+        console.error(`[Bundle] Error creating ${type} post:`, error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function disconnectPlatform(instanceId, type) {
+    const inst = getInstanceById(instanceId);
+    if (!inst) return { success: false, error: 'Invalid Instance' };
+
+    try {
+        const teamId = await getTeamId(inst);
+        if (!teamId) return { success: false, error: 'No Team ID' };
+
+        await inst.bundle.socialAccount.socialAccountDisconnect({
+            requestBody: { teamId, type: type.toUpperCase() }
+        });
+
+        // Update usage
+        const usage = getUsageForKey(inst.key);
+        if (type.toUpperCase() === 'FACEBOOK') usage.facebookConnected = false;
+        if (type.toUpperCase() === 'YOUTUBE') usage.youtubeConnected = false;
+        await saveUsage();
+
+        return { success: true };
+    } catch (error) {
+        console.error(`[Bundle] Error disconnecting ${type}:`, error.message);
         return { success: false, error: error.message };
     }
 }

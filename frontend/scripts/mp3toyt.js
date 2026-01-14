@@ -7,6 +7,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     localStorage.setItem('mp3toyt_sessionId', sessionId);
 
+    // Check for success redirects (v188)
+    const success = urlParams.get('success');
+    if (success) {
+        // Use a slight delay to ensure the UI is ready
+        setTimeout(() => {
+            if (success === 'youtube' || success === 'youtube-callback') showNotification('YouTube account connected successfully!');
+            if (success === 'facebook' || success === 'facebook-callback') showNotification('Facebook account connected successfully!');
+            // Clean up the URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }, 500);
+    }
+
     // DOM Elements
     const audioUrlInput = document.getElementById('audio-url');
     const imageUrlInput = document.getElementById('image-url');
@@ -195,14 +207,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     channelList.appendChild(item);
                 });
 
-                if (channels.length > 0) {
-                    const mBtn = document.getElementById('manage-channels-btn');
-                    if (mBtn) mBtn.style.display = 'block';
+                const mBtn = document.getElementById('manage-channels-btn');
+                if (mBtn) {
+                    mBtn.style.display = channels.length > 0 ? 'flex' : 'none';
                 }
 
+                const urlParams = new URLSearchParams(window.location.search);
+                const newChannelId = urlParams.get('new_channel_id');
                 const savedId = localStorage.getItem('selectedChannelId');
                 const savedPlatform = localStorage.getItem('selectedChannelPlatform') || 'youtube';
-                if (savedId && channels.find(c => c.channelId === savedId)) {
+
+                if (newChannelId && channels.find(c => c.channelId === newChannelId)) {
+                    // Prioritize newly connected channel
+                    const newChan = channels.find(c => c.channelId === newChannelId);
+                    selectChannel(newChannelId, newChan.platform || 'youtube');
+                    // Clear the parameter from URL to prevent re-selection on refresh? Optional.
+                } else if (savedId && channels.find(c => c.channelId === savedId)) {
                     selectChannel(savedId, savedPlatform);
                 } else if (channels.length > 0) {
                     selectChannel(channels[0].channelId, channels[0].platform || 'youtube');
@@ -234,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
     }
+    window.showNotification = showNotification;
 
     function showConfirmationToast(message, onConfirm) {
         const toast = document.createElement('div'); toast.className = 'toast-notification error show';
@@ -251,11 +272,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function checkSessionStatus() {
         if (!sessionId) return;
+        console.log('[CheckSession] Checking status for session:', sessionId);
         const res = await fetch(`/session-status?sessionId=${sessionId}`);
         const data = await res.json();
+        console.log('[CheckSession] Received data:', data);
         if (data.success) {
-            if (data.audio) { updateAudioStatus(data.audioCount || 1, data.totalDuration, true); }
-            if (data.image) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image restored', () => resetImage()); updateImagePreview(`${data.imageUrl}?t=${Date.now()}`); }
+            if (data.audio) {
+                console.log('[CheckSession] Audio found, count:', data.audioCount);
+                updateAudioStatus(data.audioCount || 1, data.totalDuration, true);
+            }
+            if (data.image) {
+                console.log('[CheckSession] Image found:', data.imageUrl);
+                state.imageReady = true;
+                setStatus(imageStatus, 'success', 'Image restored', () => resetImage());
+                updateImagePreview(`${data.imageUrl}?t=${Date.now()}`);
+            }
             updateCreateButton();
         }
     }
@@ -334,8 +365,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const file of files) {
             const isAudio = file.type.startsWith('audio/');
-            const isImage = file.type.startsWith('image/');
-            if (!isAudio && !isImage) continue;
+            const isImage = file.type.startsWith('image/') ||
+                file.name.toLowerCase().endsWith('.webp') ||
+                file.name.toLowerCase().endsWith('.bmp') ||
+                file.name.toLowerCase().endsWith('.gif');
+            if (!isAudio && !isImage) {
+                console.log('[Upload] Skipping unsupported file type:', file.type, file.name);
+                continue;
+            }
 
             const formData = new FormData();
             formData.append('sessionId', sessionId);
@@ -777,9 +814,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let successHtml = `<strong>Complete!</strong> `;
                 if (status.platform === 'facebook') {
-                    successHtml += `<span style="color: #1877f2;">Processing on Facebook...</span> `;
+                    // Check if it's a real schedule (more than 1 minute in the future)
+                    const isRealSchedule = status.publishAt && (new Date(status.publishAt).getTime() > Date.now() + 60000);
+                    if (isRealSchedule) {
+                        const date = new Date(status.publishAt);
+                        const formatted = date.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        successHtml += `Scheduled for: ${formatted}`;
+                    } else {
+                        successHtml += `Processing on Facebook...`;
+                    }
                 } else {
-                    successHtml += `<a href="${status.videoUrl}" target="_blank">Watch on YouTube</a> `;
+                    if (status.videoUrl && status.videoUrl.includes('bundle.social')) {
+                        successHtml += `Processing on YouTube...`;
+                    } else {
+                        successHtml += `<a href="${status.videoUrl}" target="_blank">Watch on YouTube</a> `;
+                    }
                 }
                 successHtml += `<br><small>Created in ${status.creationTime}s • Uploaded in ${status.uploadTime}s</small>`;
 
@@ -880,6 +929,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             managementDropdown?.classList.remove('show');
             addAccountDropdown.classList.toggle('show');
+        });
+
+        // Force auth links to open in popups (v188)
+        addAccountDropdown.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const url = link.getAttribute('href');
+                const width = 600, height = 700;
+                const left = (window.innerWidth / 2) - (width / 2);
+                const top = (window.innerHeight / 2) - (height / 2);
+                window.open(url, 'ConnectAccount', `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,status=no,menubar=no,toolbar=no`);
+                addAccountDropdown.classList.remove('show');
+            });
         });
     }
 
@@ -1229,7 +1291,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const isAdmin = data.user.username === 'erraja';
                 localStorage.setItem('mp3toyt_isAdmin', isAdmin); // Sync for next refresh
-                if (managementBtn) managementBtn.style.display = isAdmin ? 'flex' : 'none';
+
+                // Show Cog menu for all logged-in users, but hide admin-only items
+                if (managementBtn) {
+                    managementBtn.style.display = 'flex';
+                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-creds-btn'];
+                    adminOnlyItems.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = isAdmin ? 'flex' : 'none';
+                    });
+                }
+
                 if (automationBtn) automationBtn.style.display = isAdmin ? 'flex' : 'none';
                 if (upgradeBtn) upgradeBtn.style.display = (data.user.plan !== 'pro') ? 'flex' : 'none';
 
