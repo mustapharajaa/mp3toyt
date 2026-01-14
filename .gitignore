@@ -8,3 +8,5 @@ channels.json
 package-lock.json
 *.log
 logos/
+homepage/
+"homepage copy/"
