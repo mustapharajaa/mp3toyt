@@ -923,7 +923,7 @@ async function processVideoQueue() {
 
         // Mark activity as starting
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId);
+            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
         }
 
         const creationStartTime = Date.now();
@@ -932,7 +932,7 @@ async function processVideoQueue() {
 
         // Update activity again before upload starts (prevents cleanup during long renders)
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId);
+            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
         }
 
         // Log final video size
@@ -997,7 +997,7 @@ async function processVideoQueue() {
 
         // Final activity update upon successful upload
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId);
+            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
         }
 
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);

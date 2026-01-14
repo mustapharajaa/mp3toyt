@@ -61,16 +61,20 @@ function getUsageForKey(key) {
 /**
  * Updates the last active timestamp for a channel to prevent auto-disconnection.
  */
-export async function updateActivity(instanceId, channelId) {
+export async function updateActivity(instanceId, channelId, platform) {
     await ensureUsageLoaded();
     const inst = getInstanceById(instanceId);
     if (!inst) return;
 
     const usage = getUsageForKey(inst.key);
     if (!usage.channels[channelId]) {
-        usage.channels[channelId] = { lastActive: new Date().toISOString() };
+        usage.channels[channelId] = {
+            platform: platform.toLowerCase(),
+            lastActive: new Date().toISOString()
+        };
     } else {
         usage.channels[channelId].lastActive = new Date().toISOString();
+        if (platform) usage.channels[channelId].platform = platform.toLowerCase();
     }
     await saveUsage();
 }
