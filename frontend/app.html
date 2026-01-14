@@ -413,6 +413,55 @@
             color: #333;
         }
 
+        /* --- Image Preview Hover Overlay --- */
+        .image-preview-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .image-preview-wrapper:hover {
+            transform: scale(1.02);
+        }
+
+        .image-preview-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            gap: 10px;
+        }
+
+        .image-preview-wrapper:hover .image-preview-overlay {
+            opacity: 1;
+        }
+
+        .image-preview-overlay i {
+            font-size: 1.5rem;
+        }
+
+        .image-preview-overlay span {
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
         /* --- Dark Mode Styles --- */
         body.dark-mode {
             background-color: #0f172a;
@@ -652,8 +701,7 @@
                 <i class="fas fa-times-circle"></i> Image not uploaded
             </div>
             <!-- Added click hint -->
-            <div id="image-preview-container" style="margin-top: 10px; text-align: center; cursor: pointer;"
-                title="Click to Preview 16:9 Output"></div>
+            <div id="image-preview-container" style="margin-top: 10px; text-align: center; cursor: pointer;"></div>
 
             <details class="details-dropdown">
                 <summary>Create background Image</summary>

@@ -99,6 +99,20 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCreateButton(); // Force main status to re-evaluate
     }
 
+    function updateImagePreview(url) {
+        const container = document.getElementById('image-preview-container');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="image-preview-wrapper">
+                <img src="${url}" style="max-height: 200px;">
+                <div class="image-preview-overlay">
+                    <i class="fas fa-edit"></i>
+                    <span>Click to edit</span>
+                </div>
+            </div>
+        `;
+    }
+
     async function loadChannels() {
         try {
             const res = await fetch('/channels');
@@ -233,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await res.json();
         if (data.success) {
             if (data.audio) { updateAudioStatus(data.audioCount || 1, data.totalDuration, true); }
-            if (data.image) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image restored', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="${data.imageUrl}?t=${Date.now()}" style="max-height: 200px;">`; }
+            if (data.image) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image restored', () => resetImage()); updateImagePreview(`${data.imageUrl}?t=${Date.now()}`); }
             updateCreateButton();
         }
     }
@@ -337,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         state.imageReady = true;
                         setStatus(imageStatus, 'success', 'Image Uploaded', () => resetImage());
-                        document.getElementById('image-preview-container').innerHTML = `<img src="${result.filePath}?t=${Date.now()}" style="max-height: 200px;">`;
+                        updateImagePreview(`${result.filePath}?t=${Date.now()}`);
                     }
                     updateCreateButton();
                 } else {
@@ -368,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatus(imageStatus, 'loading', 'Downloading...');
         const res = await fetch('/download-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url, sessionId }) });
         const result = await res.json();
-        if (result.success) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Downloaded', () => resetImage()); document.getElementById('image-preview-container').innerHTML = `<img src="${result.filePath}?t=${Date.now()}" style="max-height: 200px;">`; updateCreateButton(); }
+        if (result.success) { state.imageReady = true; setStatus(imageStatus, 'success', 'Image Downloaded', () => resetImage()); updateImagePreview(`${result.filePath}?t=${Date.now()}`); updateCreateButton(); }
     }
 
     imageUrlInput.addEventListener('change', (e) => handleImageUrl(e.target.value));
@@ -617,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const result = await res.json();
                     if (result.success) {
                         showNotification('Saved!');
-                        document.getElementById('image-preview-container').innerHTML = `<img src="/temp/${sessionId}/image.jpg?t=${Date.now()}" style="max-height: 200px;">`;
+                        updateImagePreview(`/temp/${sessionId}/image.jpg?t=${Date.now()}`);
                         closeEditor();
                     } else showNotification(result.message || 'Error saving image', 'error');
                 } catch (err) { console.error('Save failed:', err); showNotification('Save failed', 'error'); }
