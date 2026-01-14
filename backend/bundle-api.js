@@ -200,7 +200,8 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
         if (oldestIdx !== -1) {
             const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
             if (oldestTime > fiveMinutesAgo) {
-                throw new Error(`All slots for ${type} are busy with active users (less than 5 mins idle). Please try again shortly.`);
+                // Throw the standard error string so index.js catches it and sends the friendly 503
+                throw new Error(`No available Bundle.social slots for ${type} (All active < 5 mins)`);
             }
 
             console.log(`[Bundle] Displacing least active ${type} connection on Key ${oldestIdx} (Last active: ${new Date(oldestTime).toISOString()})`);
