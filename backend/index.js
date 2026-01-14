@@ -877,12 +877,12 @@ async function processVideoQueue() {
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
-        jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...' };
+        jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
         const creationStartTime = Date.now();
         await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
         const creationTime = Math.round((Date.now() - creationStartTime) / 1000);
 
-        jobStatus[sessionId] = { status: 'uploading', message: `Uploading to ${platform === 'facebook' ? 'Facebook' : 'YouTube'}... 0%` };
+        jobStatus[sessionId] = { status: 'uploading', message: `Uploading to ${platform === 'facebook' ? 'Facebook' : 'YouTube'}... 0%`, platform };
         const uploadStartTime = Date.now();
 
         let uploadResult;
@@ -948,7 +948,8 @@ async function processVideoQueue() {
             message: platform === 'facebook' ? 'Scheduled on Bundle.social!' : 'Upload Complete!',
             videoUrl,
             creationTime,
-            uploadTime
+            uploadTime,
+            platform
         };
 
     } catch (error) {
