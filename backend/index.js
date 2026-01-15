@@ -1131,7 +1131,7 @@ async function processVideoQueue() {
             const videoMetadata = {
                 title,
                 description,
-                tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+                tags: Array.isArray(tags) ? tags : (tags ? tags.split(',').map(tag => tag.trim()) : []),
                 privacyStatus,
                 ...(publishAt && { publishAt })
             };
