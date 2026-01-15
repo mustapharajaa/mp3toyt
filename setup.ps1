@@ -221,7 +221,7 @@ $tunnelInCloud = $tunnelList | Select-String "\s$tunnelName\s"
 
 # Decision tree for tunnel setup
 if ($hasLocalCredentials) {
-    Write-Host "✓ Tunnel credentials found locally." -ForegroundColor Green
+    Write-Host "[OK] Tunnel credentials found locally." -ForegroundColor Green
     $foundCredFile = $jsonFiles[0].FullName
     Write-Host "  Credential file: $($jsonFiles[0].Name)" -ForegroundColor Gray
 } else {
@@ -246,7 +246,7 @@ if ($hasLocalCredentials) {
     $jsonFiles = Get-ChildItem $cloudflaredDir -Filter "*.json" -ErrorAction SilentlyContinue
     if ($jsonFiles.Count -gt 0) {
         $foundCredFile = $jsonFiles[0].FullName
-        Write-Host "✓ Tunnel created successfully!" -ForegroundColor Green
+        Write-Host "[OK] Tunnel created successfully!" -ForegroundColor Green
     } else {
         Write-Host "✗ Failed to create tunnel credentials!" -ForegroundColor Red
         exit 1
@@ -261,7 +261,7 @@ if (-not (Test-Path $backupDir)) {
 Write-Host "Creating backup of tunnel credentials..." -ForegroundColor Yellow
 Copy-Item "$cloudflaredDir\cert.pem" "$backupDir\cert.pem" -Force -ErrorAction SilentlyContinue
 Copy-Item "$cloudflaredDir\*.json" "$backupDir\" -Force -ErrorAction SilentlyContinue
-Write-Host "✓ Backup saved to: $backupDir" -ForegroundColor Green
+Write-Host "[OK] Backup saved to: $backupDir" -ForegroundColor Green
 
 # Extract tunnel ID from the JSON filename
 $tunnelId = (Get-Item $foundCredFile).BaseName
@@ -269,21 +269,15 @@ $tunnelId = (Get-Item $foundCredFile).BaseName
 # Create a config file for the tunnel (more reliable than command-line)
 $configFile = Join-Path $cloudflaredDir "config.yml"
 Write-Host "Creating tunnel config file..." -ForegroundColor Yellow
-$configContent = @"
-tunnel: $tunnelId
-credentials-file: $foundCredFile
-
-ingress:
-  - service: http://localhost:8000
-"@
+$configContent = "tunnel: $tunnelId`r`ncredentials-file: $foundCredFile`r`n`r`ningress:`r`n  - service: http://localhost:8000`r`n"
 [System.IO.File]::WriteAllText($configFile, $configContent)
-Write-Host "✓ Config file created at: $configFile" -ForegroundColor Green
+Write-Host "Config file created at: $configFile" -ForegroundColor Green
 
 # Route DNS
 Write-Host "Setting up DNS routing..." -ForegroundColor Yellow
 $domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
 cloudflared tunnel route dns -f $tunnelName $domainOnly 2>&1 | Out-Null
-Write-Host "✓ DNS routed: $domainOnly -> $tunnelName" -ForegroundColor Green
+Write-Host "[OK] DNS routed: $domainOnly -> $tunnelName" -ForegroundColor Green
 
 # Cleanup existing processes to free up ports
 Write-Host 'Cleaning up old processes...' -ForegroundColor Cyan
@@ -311,8 +305,8 @@ Write-Host '   Option B - PM2 Auto-start (recommended, runs in background):' -Fo
 Write-Host "   pm2 start cloudflared --name cf-tunnel -- tunnel run $tunnelName" -ForegroundColor Yellow
 Write-Host '   pm2 save' -ForegroundColor Yellow
 Write-Host ''
-Write-Host '✓ Tunnel credentials backed up to: tunnel-backup/' -ForegroundColor Green
-Write-Host '✓ If credentials are lost, they can be restored from backup' -ForegroundColor Green
+Write-Host '[OK] Tunnel credentials backed up to: tunnel-backup/' -ForegroundColor Green
+Write-Host '[OK] If credentials are lost, they can be restored from backup' -ForegroundColor Green
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser
