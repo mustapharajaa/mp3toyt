@@ -1343,32 +1343,6 @@ router.post('/start-automation', async (req, res) => {
     }
 
     try {
-        // 1. Get all available channels (YouTube only)
-        let allChannels = [];
-        console.log(`[Automation] Request from ${username}. Links count: ${links.length}`);
-
-        if (username && username !== 'guest') {
-            allChannels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
-            console.log(`[Automation] Found ${allChannels.length} active (non-exhausted) YouTube channels for ${username}`);
-        }
-
-        if (allChannels.length === 0) {
-            // Memory System: Save to Pending
-            console.log(`[Automation] No channels available for ${username}. Saving to memory...`);
-            let pending = [];
-            if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
-                pending = await fs.readJson(PENDING_AUTOMATION_PATH);
-            }
-            pending.push({ links, thumbUrl, username, timestamp: new Date().toISOString() });
-            await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
-
-            return res.json({
-                success: true,
-                isPending: true,
-                message: 'No active channels found. Your links have been saved to memory and will process automatically as soon as you connect a new YouTube channel.'
-            });
-        }
-
         // 2. Determine Channel (Atomic Selection with Lock)
         await acquireAutomationLock();
         let stats = {};
@@ -1386,24 +1360,32 @@ router.post('/start-automation', async (req, res) => {
                 allChannels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
             }
 
-            if (allChannels.length === 0) {
-                releaseAutomationLock();
-                return res.status(400).json({ success: false, error: 'No active channels available.' });
-            }
-
             const savedCount = stats[username] || 0;
             const pendingCount = automationPendingCounters[username] || 0;
             const effectiveCount = savedCount + pendingCount;
-
-            // Rotate channels based on 6-video chunks including pending
             const channelIndex = Math.floor(effectiveCount / 6);
-            if (channelIndex >= allChannels.length) {
-                // If we ran out of available channels for the pending backlog
-                console.log(`[Automation] ⚠️ Backlog exceeds available channels. Using last channel.`);
-                activeChannel = allChannels[allChannels.length - 1];
-            } else {
-                activeChannel = allChannels[channelIndex];
+
+            // CAPACITY CHECK: If no channels OR we've assigned all available slots (6 per channel)
+            if (allChannels.length === 0 || channelIndex >= allChannels.length) {
+                console.log(`[Automation] No capacity for ${username} (${allChannels.length} channels, ${effectiveCount} assigned). Saving to memory...`);
+                let pending = [];
+                if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
+                    pending = await fs.readJson(PENDING_AUTOMATION_PATH);
+                }
+                pending.push({ links, thumbUrl, username, timestamp: new Date().toISOString() });
+                await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
+
+                releaseAutomationLock();
+                return res.json({
+                    success: true,
+                    isPending: true,
+                    message: allChannels.length === 0
+                        ? 'No active channels found. Saved to memory.'
+                        : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.'
+                });
             }
+
+            activeChannel = allChannels[channelIndex];
 
             // Determine if this specific upload will trigger the switch (6th video of its channel)
             const nextCount = (effectiveCount + 1);
