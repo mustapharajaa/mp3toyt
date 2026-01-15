@@ -1168,8 +1168,8 @@ async function processVideoQueue() {
             publishAt
         };
 
-        // --- SUCCESS: Update Permanent Automation Stats ---
-        if (username) {
+        // --- SUCCESS: Update Permanent Automation Stats (ERRaja Admin Only) ---
+        if (username === 'erraja') {
             await acquireAutomationLock();
             try {
                 const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
@@ -1192,16 +1192,16 @@ async function processVideoQueue() {
             } finally {
                 releaseAutomationLock();
             }
-        }
 
-        // If the channel was marked for deletion during the queuing phase, delete it NOW after success
-        if (deleteChannelOnSuccess) {
-            console.log(`[Queue] Successfully uploaded 6th video. Permanently deleting exhausted channel/token: ${channelId}`);
-            try {
-                await mp3toytChannels.deleteChannel(channelId, username);
-                await deleteToken(channelId);
-            } catch (delErr) {
-                console.error(`[Queue] Post-success deletion failed for ${channelId}:`, delErr.message);
+            // If the channel was marked for deletion during the queuing phase, delete it NOW after success
+            if (deleteChannelOnSuccess) {
+                console.log(`[Queue] Successfully uploaded 6th video. Permanently deleting exhausted channel/token: ${channelId}`);
+                try {
+                    await mp3toytChannels.deleteChannel(channelId, username);
+                    await deleteToken(channelId);
+                } catch (delErr) {
+                    console.error(`[Queue] Post-success deletion failed for ${channelId}:`, delErr.message);
+                }
             }
         }
 
@@ -1351,6 +1351,12 @@ router.post('/start-automation', async (req, res) => {
     // Internal Bypass for Pending Queue Processor
     if (__internalCall && req.headers['x-internal-user']) {
         username = req.headers['x-internal-user'];
+    }
+
+    // Automation is restricted to erraja only
+    if (username !== 'erraja') {
+        console.warn(`[Automation Security] Non-admin user ${username} tried to start automation.`);
+        return res.status(403).json({ success: false, error: 'Automation is restricted to administrative accounts.' });
     }
 
     if (!links || !Array.isArray(links) || links.length === 0) {
