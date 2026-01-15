@@ -12,3 +12,6 @@ homepage/
 homepage copy/
 bundle_usage.json
 users.json
+admin_channels.json
+automation_stats.json
+pending_automation.json

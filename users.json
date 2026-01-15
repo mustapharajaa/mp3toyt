@@ -30,5 +30,13 @@
     "role": "user",
     "plan": "free",
     "createdAt": "2026-01-14T23:25:33.862Z"
+  },
+  {
+    "id": "56f7e869-8dc8-4c17-a40a-676c937df03e",
+    "username": "kj",
+    "password": "$2b$10$FjEdms9Mvx4LJLuRRenLo.tZWD3GPBL3jz6oJZ/pxk5G0f/FgEi62",
+    "role": "user",
+    "plan": "free",
+    "createdAt": "2026-01-15T04:03:00.333Z"
   }
 ]

@@ -1,4 +1,4 @@
-import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH, AUTOMATION_STATS_PATH, LOGOS_DIR } from './config.js'; // Load variables
+import { SCOPES, TOKEN_PATH, CREDENTIALS_PATH, ACTIVE_STREAMS_PATH, CHANNELS_PATH, ADMIN_CHANNELS_PATH, FACEBOOK_TOKENS_PATH, FACEBOOK_CREDENTIALS_PATH, AUTOMATION_STATS_PATH, PENDING_AUTOMATION_PATH, LOGOS_DIR } from './config.js'; // Load variables
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -50,6 +50,75 @@ const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
 const FALLBACK_THUMBNAILS_DIR = path.join(__dirname, '../temp/thumbnails');
 const upload = multer();
+
+// In-memory lock for automation state to prevent race conditions
+let automationLock = false;
+async function acquireAutomationLock() {
+    while (automationLock) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    automationLock = true;
+}
+function releaseAutomationLock() {
+    automationLock = false;
+}
+
+// --- Pending Automation Logic ---
+async function processPendingAutomation(username) {
+    try {
+        if (!(await fs.pathExists(PENDING_AUTOMATION_PATH))) return;
+
+        const allPending = await fs.readJson(PENDING_AUTOMATION_PATH);
+        const userPending = allPending.filter(item => item.username === username);
+
+        if (userPending.length === 0) return;
+
+        console.log(`[Pending] Found ${userPending.length} pending items for ${username}. Checking for channels...`);
+
+        // Check for available channels
+        const channels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
+        if (channels.length === 0) {
+            console.log(`[Pending] Still no channels for ${username}. Staying in memory.`);
+            return;
+        }
+
+        console.log(`[Pending] Channels available! Processing memory for ${username}...`);
+
+        // Process sequentially to maintain lock integrity
+        for (const item of userPending) {
+            console.log(`[Pending] Auto-triggering session for ${username}`);
+            // We simulate a request call to start-automation logic
+            // To avoid code duplication, we'll wrap the logic or just let the user know they can start it.
+            // Actually, we can just call an internal function.
+            await triggerAutomationInternal(item.links, item.thumbUrl, item.username);
+        }
+
+        // Clear processed items
+        const remaining = allPending.filter(item => item.username !== username);
+        await fs.writeJson(PENDING_AUTOMATION_PATH, remaining, { spaces: 4 });
+
+    } catch (err) {
+        console.error(`[Pending Error]`, err.message);
+    }
+}
+
+async function triggerAutomationInternal(links, thumbUrl, username) {
+    // This is a minimal mock of the POST /start-automation body
+    // We fetch this via internal fetch or direct call
+    try {
+        const response = await axios.post(`http://localhost:${process.env.PORT || 8000}/start-automation`, {
+            links,
+            thumbUrl,
+            __internalCall: true // Flag to distinguish if needed
+        }, {
+            // We need a way to bypass session for internal calls or pass the username
+            headers: { 'x-internal-user': username }
+        });
+        console.log(`[Pending] Successfully triggered: ${response.data.sessionId}`);
+    } catch (err) {
+        console.error(`[Pending] Trigger failed:`, err.response?.data?.error || err.message);
+    }
+}
 
 // Ensure Directories Exist
 fs.ensureDirSync(UPLOADS_BASE_DIR);
@@ -113,7 +182,7 @@ async function disconnectUserBundleChannels(username) {
                 await bundleApi.disconnectPlatform(ch.bundleInstanceId, ch.platform);
             }
             // Remove from local database
-            await mp3toytChannels.deleteChannel(ch.channelId);
+            await mp3toytChannels.deleteChannel(ch.channelId, username);
         }
     } catch (err) {
         console.error(`[Bundle Cleanup] Failed to disconnect channels for ${username}:`, err.message);
@@ -259,13 +328,14 @@ router.get('/download-audio', async (req, res) => {
 });
 
 /**
- * Fetches title and description for a YouTube video using yt-dlp
+ * Fetches title, description, and tags for a YouTube video using yt-dlp
  */
 async function getYoutubeMetadata(link) {
     const args = [
         '--no-playlist',
         '--print', '%(title)s',
         '--print', '%(description)s',
+        '--print', '%(tags)j',
         '--js-runtimes', 'node',
         link
     ];
@@ -283,20 +353,52 @@ async function getYoutubeMetadata(link) {
 
         proc.on('close', (code) => {
             if (code === 0) {
-                const lines = output.trim().split('\n');
-                const title = lines[0] || 'Music Video';
-                const description = lines.slice(1).join('\n') || ''; // Default to empty string
+                // Split by newline but handle potential empty lines in JSON
+                const parts = output.trim().split('\n');
+
+                // Title is the first line
+                const title = parts[0] || 'Music Video';
+
+                // Tags JSON is usually the last line
+                let tags = [];
+                let description = '';
+
+                try {
+                    const lastLine = parts[parts.length - 1];
+                    if (lastLine.trim().startsWith('[') || lastLine.trim().startsWith('{')) {
+                        tags = JSON.parse(lastLine);
+                        description = parts.slice(1, -1).join('\n') || '';
+                    } else {
+                        description = parts.slice(1).join('\n') || '';
+                    }
+                } catch (e) {
+                    description = parts.slice(1).join('\n') || '';
+                }
+
+                // Sanitize Description: Keep only Hashtags and Tags metadata
+                // 1. Extract hashtags from description
+                const hashtags = (description.match(/#[\w\u0590-\u05ff]+/g) || []);
+                // 2. Remove duplicates
+                const uniqueHashtags = [...new Set(hashtags)];
+
+                // 3. Construct clean description
+                const cleanDescription = [
+                    uniqueHashtags.join(' '),
+                    '',
+                    tags && Array.isArray(tags) ? tags.join(', ') : ''
+                ].filter(line => line.trim().length > 0).join('\n\n');
 
                 console.log(`[Metadata] Extracted Title: ${title}`);
-                console.log(`[Metadata] Extracted Description Length: ${description.length}`);
+                console.log(`[Metadata] Cleaned Description (Hashtags: ${uniqueHashtags.length}, Tags: ${tags?.length || 0})`);
 
                 resolve({
                     title: title,
-                    description: description
+                    description: cleanDescription,
+                    tags: tags && Array.isArray(tags) ? tags : [] // Return raw tags for the tags field
                 });
             } else {
                 console.warn(`[Metadata] yt-dlp failed with code ${code}. Using default title.`);
-                resolve({ title: 'Music Video', description: '' });
+                resolve({ title: 'Music Video', description: '', tags: [] });
             }
         });
     });
@@ -551,79 +653,71 @@ router.get('/channels', async (req, res) => {
 
         let allChannels = [];
 
-        // YouTube Channels
-        if (await fs.pathExists(CHANNELS_PATH)) {
-            const data = await fs.readJson(CHANNELS_PATH);
-            const ytChannelsRaw = Array.isArray(data) ? data : (data && Array.isArray(data.channels) ? data.channels : []);
+        // YouTube & Facebook Channels (Unified)
+        const userChannels = await mp3toytChannels.getChannelsForUser(username);
 
-            // Filter by user and ensure data validity (prevents {} or nulls)
-            const userYtChannels = ytChannelsRaw.filter(c =>
-                (c && c.channelId && c.channelTitle) &&
-                (c.username === username || !c.username)
-            );
+        // Process channels (scaling, isConnected check, logo caching)
+        const processedChannels = await Promise.all(userChannels.map(async c => {
+            const logoName = `${c.platform || 'youtube'}_${c.channelId}.jpg`;
+            const localLogoPath = path.join(LOGOS_DIR, logoName);
+            const localLogoUrl = `/logos/${logoName}`;
 
-            // Non-blocking Caching logic
-            const processedYtChannels = await Promise.all(userYtChannels.map(async c => {
-                const logoName = `${c.platform || 'youtube'}_${c.channelId}.jpg`;
-                const localLogoPath = path.join(LOGOS_DIR, logoName);
-                const localLogoUrl = `/logos/${logoName}`;
+            const isCached = await fs.pathExists(localLogoPath);
 
-                const isCached = await fs.pathExists(localLogoPath);
+            if (c.thumbnail && !isCached) {
+                // Start download in background
+                (async () => {
+                    try {
+                        const response = await axios({
+                            url: c.thumbnail,
+                            responseType: 'stream',
+                            timeout: 5000,
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                            }
+                        });
+                        const writer = fs.createWriteStream(localLogoPath);
+                        response.data.pipe(writer);
+                        await new Promise((resolve, reject) => {
+                            writer.on('finish', resolve);
+                            writer.on('error', reject);
+                        });
+                        console.log(`[LogoCache] Successfully cached logo for ${c.channelId}`);
+                    } catch (err) {
+                        console.error(`[LogoCache] Background cache failed for ${c.channelId}:`, err.message);
+                    }
+                })();
+            }
 
-                if (c.thumbnail && !isCached) {
-                    // Start download in background, don't await it
-                    (async () => {
-                        try {
-                            const response = await axios({ url: c.thumbnail, responseType: 'stream', timeout: 5000 });
-                            const writer = fs.createWriteStream(localLogoPath);
-                            response.data.pipe(writer);
-                            await new Promise((resolve, reject) => {
-                                writer.on('finish', resolve);
-                                writer.on('error', reject);
-                            });
-                        } catch (err) {
-                            console.error(`[LogoCache] Background cache failed for ${c.channelId}:`, err.message);
-                        }
-                    })();
-                }
+            // Check if the channel's API slot is actually connected
+            let isConnected = true;
+            if (c.bundleInstanceId !== undefined) {
+                const inst = bundleApi.getInstanceById(c.bundleInstanceId);
+                const lookupKey = inst ? inst.key : c.bundleInstanceId;
+                const usage = bundleApi.getUsageForKey(lookupKey);
+                let liveConnected = true;
+                if (c.platform === 'facebook' && !usage.facebookConnected) liveConnected = false;
+                if (c.platform === 'youtube' && !usage.youtubeConnected) liveConnected = false;
 
-                // Check if the channel's API slot is actually connected (for UI disabling)
-                // Check if the channel's API slot is actually connected (for UI disabling)
-                let isConnected = true;
-                if (c.bundleInstanceId !== undefined) {
-                    // Fix: Resolve Instance ID (index) to actual API Key to get accurate usage
-                    const inst = bundleApi.getInstanceById(c.bundleInstanceId);
-                    // Fallback to ID if instance lookup fails (shouldn't happen)
-                    const lookupKey = inst ? inst.key : c.bundleInstanceId;
-                    const usage = bundleApi.getUsageForKey(lookupKey);
-                    let liveConnected = true;
-                    if (c.platform === 'facebook' && !usage.facebookConnected) liveConnected = false;
-                    if (c.platform === 'youtube' && !usage.youtubeConnected) liveConnected = false;
-
-                    // If live check fails, fall back to stored status if it says 'connected'
-                    // This handles cases where Bundle API sync hasn't run yet or failed temporarily
-                    if (!liveConnected) {
-                        if (c.status === 'connected') {
-                            liveConnected = true;
-                        } else {
-                            isConnected = false;
-                        }
+                if (!liveConnected) {
+                    if (c.status === 'connected') {
+                        liveConnected = true;
+                    } else {
+                        isConnected = false;
                     }
                 }
+            }
 
-                return {
-                    ...c,
-                    thumbnail: isCached ? localLogoUrl : c.thumbnail,
-                    platform: c.platform || 'youtube',
-                    isConnected: isConnected
-                };
-            }));
+            return {
+                ...c,
+                thumbnail: isCached ? localLogoUrl : c.thumbnail,
+                platform: c.platform || 'youtube',
+                isConnected: isConnected
+            };
+        }));
 
-            allChannels = processedYtChannels;
-        }
-
-        // Return only channels associated with this user in our local database
-        res.json(allChannels);
+        console.log(`[/channels] Sending ${processedChannels.length} channels for ${username}`);
+        res.json(processedChannels);
     } catch (error) {
         console.error('Error reading channels file:', error);
         res.status(500).json({ error: 'Failed to load channels.' });
@@ -1073,16 +1167,31 @@ async function processVideoQueue() {
             publishAt
         };
 
-        // If the channel was marked as exhausted during the queuing phase, delete it NOW after success
-        if (channelMeta.status === 'exhausted') {
-            console.log(`[Queue] Final upload for exhausted channel ${channelMeta.channelTitle} complete. Deleting from system.`);
-            await mp3toytChannels.deleteChannel(channelMeta.channelId);
-            await deleteToken(channelMeta.channelId);
+        // If the channel was marked for deletion during the queuing phase, delete it NOW after success
+        if (job.deleteChannelOnSuccess) {
+            console.log(`[Queue] Final upload for cycle complete on ${channelId}. Deleting from system.`);
+            try {
+                await mp3toytChannels.deleteChannel(channelId, username);
+                await deleteToken(channelId);
+            } catch (delErr) {
+                console.error(`[Queue] Post-success deletion failed for ${channelId}:`, delErr.message);
+            }
         }
 
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
+
+        // Auto-delete channel if it has exceeded upload limits (ONLY for admin automation)
+        if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
+            console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
+            try {
+                await mp3toytChannels.deleteChannel(channelId, username);
+                await deleteToken(channelId);
+            } catch (delErr) {
+                console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
+            }
+        }
     } finally {
         // Delay cleanup to avoid race conditions with the client starting a new session
         setTimeout(async () => {
@@ -1192,9 +1301,14 @@ router.post('/create-video', upload.none(), async (req, res) => {
 });
 
 router.post('/start-automation', async (req, res) => {
-    const { links, thumbUrl } = req.body;
-    const username = req.session && req.session.username ? req.session.username : 'guest';
+    const { links, thumbUrl, __internalCall } = req.body;
+    let username = req.session && req.session.username ? req.session.username : 'guest';
     const userId = req.session && req.session.userId ? req.session.userId : null;
+
+    // Internal Bypass for Pending Queue Processor
+    if (__internalCall && req.headers['x-internal-user']) {
+        username = req.headers['x-internal-user'];
+    }
 
     if (!links || !Array.isArray(links) || links.length === 0) {
         return res.status(400).json({ success: false, error: 'No links provided.' });
@@ -1211,20 +1325,67 @@ router.post('/start-automation', async (req, res) => {
         }
 
         if (allChannels.length === 0) {
-            return res.status(400).json({ success: false, error: 'No connected channels found. Please connect an account first.' });
+            // Memory System: Save to Pending
+            console.log(`[Automation] No channels available for ${username}. Saving to memory...`);
+            let pending = [];
+            if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
+                pending = await fs.readJson(PENDING_AUTOMATION_PATH);
+            }
+            pending.push({ links, thumbUrl, username, timestamp: new Date().toISOString() });
+            await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
+
+            return res.json({
+                success: true,
+                isPending: true,
+                message: 'No active channels found. Your links have been saved to memory and will process automatically as soon as you connect a new YouTube channel.'
+            });
         }
 
-        // 2. Determine Channel (Consume based on first available)
+        // 2. Determine Channel (Atomic Selection with Lock)
+        await acquireAutomationLock();
         let stats = {};
-        if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
-            stats = await fs.readJson(AUTOMATION_STATS_PATH);
+        let activeChannel;
+        let activeDeleteOnSuccess;
+        let activeUserCount;
+
+        try {
+            if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                stats = await fs.readJson(AUTOMATION_STATS_PATH);
+            }
+
+            // Re-fetch channels inside lock to get latest status
+            if (username && username !== 'guest') {
+                allChannels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
+            }
+
+            if (allChannels.length === 0) {
+                releaseAutomationLock();
+                return res.status(400).json({ success: false, error: 'No active channels available.' });
+            }
+
+            activeUserCount = stats[username] || 0;
+            activeChannel = allChannels[0];
+            const nextCount = activeUserCount + 1;
+            activeDeleteOnSuccess = nextCount >= 6;
+
+            console.log(`[Automation] Consuming Channel: ${activeChannel.channelTitle} (ID: ${activeChannel.channelId}) | Count: ${activeUserCount}/6`);
+
+            // Increment and save stats immediately
+            stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
+
+            if (activeDeleteOnSuccess) {
+                console.log(`[Automation] 🏆 Final upload for ${activeChannel.channelTitle}. Marking as EXHAUSTED.`);
+                await mp3toytChannels.saveChannel({ ...activeChannel, status: 'exhausted' }, username);
+                stats[username] = 0;
+            } else {
+                stats[username] = nextCount;
+            }
+
+            await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+
+        } finally {
+            releaseAutomationLock();
         }
-        const userCount = stats[username] || 0;
-
-        // Always pick the FIRST available channel for consumption
-        const targetChannel = allChannels[0];
-
-        console.log(`[Automation] Consuming Channel: ${targetChannel.channelTitle} (ID: ${targetChannel.channelId}) | Count: ${userCount}/6`);
 
         // 3. Setup Session
         const sessionId = `auto_${uuidv4().substring(0, 8)}`;
@@ -1273,6 +1434,7 @@ router.post('/start-automation', async (req, res) => {
                 const meta = await getYoutubeMetadata(links[0]);
                 videoTitle = meta.title;
                 videoDescription = meta.description;
+                const videoTags = meta.tags || [];
 
                 // Download all audio links
                 for (let i = 0; i < links.length; i++) {
@@ -1298,13 +1460,12 @@ router.post('/start-automation', async (req, res) => {
                     finalAudioPath = await concatenateAudioFiles(sessionDir);
                     console.log(`[Automation] Merging complete: ${finalAudioPath}`);
                 }
-
-                // 7. Determine Scheduling (6-video cycle)
-                const cycleIndex = userCount % 6;
+                // 7. Determine Scheduling (6-video cycle based on userCount before increment)
+                const cycleIndex = activeUserCount % 6;
                 let visibility = 'public';
                 let publishAt = null;
 
-                console.log(`[Automation] [User: ${username}] Current upload count: ${userCount} (Cycle Index: ${cycleIndex}/5)`);
+                console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
                 if (cycleIndex > 0) {
                     visibility = 'private'; // Scheduled videos must be private first
@@ -1338,8 +1499,8 @@ router.post('/start-automation', async (req, res) => {
                 }
 
                 // 8. Add to videoQueue
-                const platform = targetChannel.platform || 'youtube';
-                console.log(`[Automation] Queuing for ${targetChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
+                const platform = activeChannel.platform || 'youtube';
+                console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
 
                 jobStatus[sessionId] = { status: 'queued', message: 'Automated video prepared.' };
                 videoQueue.push({
@@ -1348,34 +1509,18 @@ router.post('/start-automation', async (req, res) => {
                     imagePath,
                     title: videoTitle,
                     description: videoDescription,
-                    tags: '', // Remove hardcoded tags
+                    tags: videoTags,
                     visibility,
                     publishAt,
-                    channelId: targetChannel.channelId,
+                    channelId: activeChannel.channelId,
                     platform,
-                    plan: req.session.plan || 'free',
+                    plan: 'free',
                     username,
-                    channelMeta: targetChannel // Pass full meta to avoid lookups if deleted later
+                    deleteChannelOnSuccess: activeDeleteOnSuccess,
+                    channelMeta: activeChannel
                 });
 
-                // Increment and save stats
-                const nextCount = userCount + 1;
-
-                // Track total lifetime videos created by automation
-                stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
-
-                if (nextCount >= 6) {
-                    console.log(`[Automation] 🏆 Channel ${targetChannel.channelTitle} reached 6/6 uploads. Marking as EXHAUSTED...`);
-                    // Mark as exhausted so it's not picked up by the next automation call
-                    await mp3toytChannels.addChannel({ ...targetChannel, status: 'exhausted' });
-                    stats[username] = 0; // Reset for next channel in line
-                } else {
-                    stats[username] = nextCount;
-                }
-
-                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
-                console.log(`[Automation] Stats updated. ${username} is at ${stats[username]}/6. Lifetime Total: ${stats.total_lifetime_videos}`);
-
+                console.log(`[Automation] Background tasks queued. Lifetime Total: ${stats.total_lifetime_videos}`);
                 processVideoQueue();
 
             } catch (bgError) {
@@ -1386,7 +1531,7 @@ router.post('/start-automation', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Video queued for ${targetChannel.channelTitle}. Songs: ${links.length}. Next switch in ${6 - ((userCount + 1) % 6)} videos.`,
+            message: `Video queued for ${activeChannel.channelTitle}. Songs: ${links.length}. Next switch in ${6 - ((activeUserCount + 1) % 6)} videos.`,
             sessionId
         });
 
@@ -1427,10 +1572,11 @@ router.get('/auth/mp3toyt', async (req, res) => {
 
         // Generate the redirect URI based on the request host
         const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
-        console.log(`[Auth] Generating URL for erraja with redirect: ${redirectUri}`);
 
-        // getAuthUrl should accept (redirectUri, context)
+        // getAuthUrl will throw if credentials.json is bad, triggering the catch block below
         const authUrl = getAuthUrl(redirectUri, 'mp3toyt');
+
+        console.log(`[Auth] Generating URL for erraja with redirect: ${redirectUri}`);
         res.redirect(authUrl);
     } catch (error) {
         console.error('[Auth Error]', error);
@@ -1521,6 +1667,18 @@ router.get('/auth/mp3toyt', async (req, res) => {
                     async function saveCredentials() {
                         const btn = document.getElementById('saveBtn');
                         const json = document.getElementById('credentials-json').value;
+                        
+                        try {
+                            const parsed = JSON.parse(json);
+                            if (!parsed.web && !parsed.installed) {
+                                showNotification('Invalid structure. Missing "web" or "installed" key.', 'error');
+                                return;
+                            }
+                        } catch (e) {
+                            showNotification('Invalid JSON format.', 'error');
+                            return;
+                        }
+
                         btn.disabled = true;
                         btn.textContent = 'Saving...';
                         try {
@@ -1532,7 +1690,14 @@ router.get('/auth/mp3toyt', async (req, res) => {
                             const data = await res.json();
                             if (data.success) {
                                 showNotification('Saved successfully!');
-                                setTimeout(closeEditor, 500);
+                                setTimeout(() => {
+                                    if (window.opener) {
+                                        window.opener.location.reload();
+                                        window.close();
+                                    } else {
+                                        window.location.href = '/app?success=credentials_updated';
+                                    }
+                                }, 600);
                             } else {
                                 showNotification(data.message || 'Error saving', 'error');
                             }
@@ -1645,7 +1810,11 @@ router.get('/auth/facebook/callback', async (req, res) => {
     let newChannelId = '';
     if (username !== 'guest') {
         const claimed = await claimBundleChannels(username, inst);
-        if (claimed.length > 0) newChannelId = claimed[0];
+        if (claimed.length > 0) {
+            newChannelId = claimed[0];
+            // Trigger Pending Queue
+            processPendingAutomation(username).catch(e => console.error('[Pending Trigger Error FB]', e.message));
+        }
     }
 
     res.send(`
@@ -1679,7 +1848,11 @@ router.get('/auth/youtube/callback', async (req, res) => {
     let newChannelId = '';
     if (username !== 'guest') {
         const claimed = await claimBundleChannels(username, inst);
-        if (claimed.length > 0) newChannelId = claimed[0];
+        if (claimed.length > 0) {
+            newChannelId = claimed[0];
+            // Trigger Pending Queue
+            processPendingAutomation(username).catch(e => console.error('[Pending Trigger Error YT]', e.message));
+        }
     }
     res.send(`
         <html>
@@ -1739,8 +1912,11 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
                 authenticatedAt: new Date().toISOString()
             };
 
-            await mp3toytChannels.addChannel(channelData);
+            await mp3toytChannels.saveChannel(channelData, username);
             console.log(`[Auth] Channel saved.`);
+
+            // Trigger Pending Queue
+            processPendingAutomation(username).catch(e => console.error('[Pending Trigger Error]', e.message));
 
             res.send(`
                 <html>
@@ -1803,7 +1979,7 @@ router.post('/delete-channel', async (req, res) => {
         }
 
         // 3. Remove from channels.json
-        await mp3toytChannels.deleteChannel(channelId);
+        await mp3toytChannels.deleteChannel(channelId, username);
 
         // 4. Remove from tokens.json (if it exists there - for erraja direct accounts)
         if (username === 'erraja') {
@@ -1869,13 +2045,29 @@ router.get('/get-credentials', async (req, res) => {
 router.post('/save-credentials', async (req, res) => {
     const { credentials } = req.body;
     try {
-        // Validate JSON
-        JSON.parse(credentials);
+        if (!credentials || credentials.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Empty content.' });
+        }
+
+        // Validate JSON and structure
+        const parsed = JSON.parse(credentials);
+        if (!parsed.web && !parsed.installed) {
+            throw new Error('JSON missing "web" or "installed" root key.');
+        }
+
+        console.log(`[Credentials] Received save request. Raw length: ${credentials?.length}`);
+        // Write file
         await fs.writeFile(CREDENTIALS_PATH, credentials, 'utf8');
+        console.log(`[Credentials] Saved successfully to ${CREDENTIALS_PATH}. Bytes: ${credentials?.length}`);
+
         res.json({ success: true, message: 'Credentials saved successfully.' });
     } catch (error) {
-        console.error('Error saving credentials:', error);
-        res.status(500).json({ success: false, message: error instanceof SyntaxError ? 'Invalid JSON format.' : 'Failed to save credentials file.', error: error.message });
+        console.error('[Credentials Error] Save failed:', error.message);
+        res.status(500).json({
+            success: false,
+            message: error instanceof SyntaxError ? 'Invalid JSON format.' : (error.message || 'Failed to save file.'),
+            error: error.message
+        });
     }
 });
 
@@ -1909,8 +2101,11 @@ router.post('/save-tokens', async (req, res) => {
 // --- Channels Management ---
 router.get('/get-channels-json', async (req, res) => {
     try {
-        if (await fs.pathExists(CHANNELS_PATH)) {
-            const content = await fs.readFile(CHANNELS_PATH, 'utf8');
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const targetPath = (username === 'erraja') ? ADMIN_CHANNELS_PATH : CHANNELS_PATH;
+
+        if (await fs.pathExists(targetPath)) {
+            const content = await fs.readFile(targetPath, 'utf8');
             res.json({ success: true, channels: content });
         } else {
             res.json({ success: true, channels: '{"channels":[]}' });
@@ -1924,8 +2119,11 @@ router.get('/get-channels-json', async (req, res) => {
 router.post('/save-channels-json', async (req, res) => {
     const { channels } = req.body;
     try {
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        const targetPath = (username === 'erraja') ? ADMIN_CHANNELS_PATH : CHANNELS_PATH;
+
         JSON.parse(channels); // Validate JSON
-        await fs.writeFile(CHANNELS_PATH, channels, 'utf8');
+        await fs.writeFile(targetPath, channels, 'utf8');
         res.json({ success: true, message: 'Channels data saved successfully.' });
     } catch (error) {
         console.error('Error saving channels file:', error);

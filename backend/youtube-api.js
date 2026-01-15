@@ -17,15 +17,16 @@ const MP3TOYT_REDIRECT_URI = process.env.YOUTUBE_REDIRECT_URI_MP3TOYT;
 
 function loadCredentials() {
     if (!fs.existsSync(CREDENTIALS_PATH)) {
-        throw new Error('credentials.json file is missing.');
+        throw new Error(`credentials.json file is missing at ${path.resolve(CREDENTIALS_PATH)}`);
     }
-    const content = fs.readFileSync(CREDENTIALS_PATH, 'utf8');
+    const content = fs.readFileSync(CREDENTIALS_PATH, 'utf8').trim();
+    if (!content || content.length < 5) {
+        throw new Error('credentials.json is empty or invalid.');
+    }
     const credentials = JSON.parse(content);
-
     if (!credentials || (!credentials.installed && !credentials.web)) {
-        throw new Error(`credentials.json at ${path.resolve(CREDENTIALS_PATH)} is empty or invalid. Please download it from Google Cloud Console and replace the placeholder.`);
+        throw new Error('credentials.json missing "web" or "installed" key.');
     }
-
     return credentials;
 }
 
@@ -318,10 +319,6 @@ export function getAuthUrl(redirectUri, state = null) {
     }
 
     const authUrl = oAuth2Client.generateAuthUrl(authUrlOptions);
-
-    console.log(`[YouTubeAPI] Generating auth URL with redirect_uri: ${redirectUri}, state: ${state}`);
-    console.log(`[YouTubeAPI] Generated auth URL: ${authUrl}`);
-
     return authUrl;
 }
 
@@ -1674,10 +1671,19 @@ export async function deleteToken(channelId) {
         if (!fs.existsSync(TOKEN_PATH)) return;
         const tokens = await fs.readJson(TOKEN_PATH);
 
-        if (tokens[channelId]) {
+        if (Array.isArray(tokens)) {
+            const initialLength = tokens.length;
+            const updatedTokens = tokens.filter(t => t.channelId !== channelId);
+
+            if (updatedTokens.length < initialLength) {
+                await fs.writeJson(TOKEN_PATH, updatedTokens, { spaces: 4 });
+                console.log(`[YouTubeAPI] Successfully deleted token for channel: ${channelId}`);
+            }
+        } else if (tokens[channelId]) {
+            // Fallback for object-based tokens (just in case)
             delete tokens[channelId];
             await fs.writeJson(TOKEN_PATH, tokens, { spaces: 4 });
-            console.log(`[YouTubeAPI] Successfully deleted token for channel: ${channelId}`);
+            console.log(`[YouTubeAPI] Successfully deleted token (object) for channel: ${channelId}`);
         }
     } catch (error) {
         console.error(`[YouTubeAPI] Error deleting token for channel ${channelId}:`, error.message);

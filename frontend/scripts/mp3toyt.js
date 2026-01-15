@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             if (success === 'youtube' || success === 'youtube-callback') showNotification('YouTube account connected successfully!');
             if (success === 'facebook' || success === 'facebook-callback') showNotification('Facebook account connected successfully!');
+            if (success === 'credentials_updated') showNotification('YouTube API Credentials updated! You can now connect your account.');
             // Clean up the URL
             window.history.replaceState({}, document.title, window.location.pathname);
         }, 500);
