@@ -1646,7 +1646,8 @@ export async function uploadVideo(channelId, videoPath, videoMetadata, onProgres
                 onUploadProgress: evt => {
                     const progress = (evt.bytesRead / fileSize) * 100;
                     const percent = Math.round(progress);
-                    console.log(`[YouTubeAPI] Upload Progress: ${percent}%`);
+                    process.stdout.write(`\r[YouTubeAPI] Upload Progress: ${percent}%`);
+                    if (percent === 100) console.log(); // Final newline when done
                     if (onProgress) onProgress(percent);
                 }
             });
