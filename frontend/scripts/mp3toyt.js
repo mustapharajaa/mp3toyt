@@ -1172,6 +1172,70 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- YouTube Credentials Management ---
+    const credentialsModal = document.getElementById('credentialsModal');
+    const manageCredentialsBtn = document.getElementById('manage-credentials-btn');
+    const closeCredentialsModal = document.getElementById('close-credentials-modal');
+    const cancelCredentialsBtn = document.getElementById('cancel-credentials-btn');
+    const saveCredentialsBtn = document.getElementById('save-credentials-btn');
+    const credentialsEditor = document.getElementById('credentials-editor');
+
+    const openYouTubeCredentials = async () => {
+        try {
+            const res = await fetch('/get-credentials');
+            const data = await res.json();
+            if (data.success) {
+                credentialsEditor.value = data.credentials;
+                credentialsModal.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Error fetching YouTube creds:', err);
+            showNotification('Error loading YouTube credentials', 'error');
+        }
+    };
+
+    if (manageCredentialsBtn) {
+        manageCredentialsBtn.addEventListener('click', openYouTubeCredentials);
+    }
+
+    const closeCredentials = () => { credentialsModal.style.display = 'none'; };
+    if (closeCredentialsModal) closeCredentialsModal.onclick = closeCredentials;
+    if (cancelCredentialsBtn) cancelCredentialsBtn.onclick = closeCredentials;
+
+    if (saveCredentialsBtn) {
+        saveCredentialsBtn.addEventListener('click', async () => {
+            try {
+                JSON.parse(credentialsEditor.value); // Validate JSON
+            } catch (e) {
+                showNotification('Invalid JSON format.', 'error');
+                return;
+            }
+
+            saveCredentialsBtn.disabled = true;
+            saveCredentialsBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/save-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credentials: credentialsEditor.value })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showNotification('YouTube credentials saved successfully!');
+                    setTimeout(closeCredentials, 500); // Close after successful save
+                } else {
+                    showNotification('Failed to save credentials', 'error');
+                }
+            } catch (err) {
+                console.error('Error saving YouTube credentials:', err);
+                showNotification('Error saving credentials', 'error');
+            } finally {
+                saveCredentialsBtn.disabled = false;
+                saveCredentialsBtn.textContent = 'Save Credentials';
+            }
+        });
+    }
+
     // --- Pricing Modal ---
     const pricingModal = document.getElementById('pricingModal');
     const upgradeBtn = document.getElementById('upgrade-btn');
@@ -1325,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show Cog menu for all logged-in users, but hide admin-only items
                 if (managementBtn) {
                     managementBtn.style.display = 'flex';
-                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-creds-btn'];
+                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-creds-btn', 'manage-credentials-btn'];
                     adminOnlyItems.forEach(id => {
                         const el = document.getElementById(id);
                         if (el) el.style.display = isAdmin ? 'flex' : 'none';

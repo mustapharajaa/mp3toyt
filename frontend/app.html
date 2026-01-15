@@ -635,6 +635,9 @@
                         style="color: #10b981;"></i> youtube Channels </button>
                 <button type="button" id="manage-fb-creds-btn"><i class="fab fa-facebook-f" style="color: #1877f2;"></i>
                     Facebook Credentials</button>
+                <button type="button" id="manage-credentials-btn"><i class="fas fa-file-code"
+                        style="color: #6366f1;"></i>
+                    YouTube Credentials</button>
             </div>
         </div>
 
@@ -1128,6 +1131,27 @@
                     style="background: #5865F2; color: white; padding: 12px; border-radius: 8px; justify-content: center; margin: 0; font-size: 1rem;">
                     <i class="fab fa-discord"></i> Join Discord
                 </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube Credentials Modal -->
+    <div id="credentialsModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px;">
+            <span class="close-modal" id="close-credentials-modal">&times;</span>
+            <h2 style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                <i class="fas fa-key" style="color: #6366f1;"></i> YouTube API Credentials
+            </h2>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Enter your <code>credentials.json</code> content from Google Cloud Console.
+            </p>
+            <textarea id="credentials-editor" spellcheck="false" placeholder='{ "web": { ... } }'
+                style="min-height: 300px; font-family: monospace;"></textarea>
+            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" id="cancel-credentials-btn" class="connect-btn"
+                    style="background: #e4e6eb; color: #050505;">Cancel</button>
+                <button type="button" id="save-credentials-btn" class="connect-btn" style="background: #1877f2;">Save
+                    Credentials</button>
             </div>
         </div>
     </div>
