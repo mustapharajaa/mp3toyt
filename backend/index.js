@@ -45,23 +45,22 @@ const router = express.Router();
 router.use(express.json());
 
 // --- Multer Configuration ---
-// --- Multer Configuration ---
 const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
 const FALLBACK_THUMBNAILS_DIR = path.join(__dirname, '../temp/thumbnails');
 const upload = multer();
 
-// In-memory lock for automation state to prevent race conditions
+// In-memory mutex for administrative automation to prevent race conditions during counter updates and channel switching
 let automationLock = false;
-async function acquireAutomationLock() {
-    while (automationLock) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-    }
+const releaseAutomationLock = () => { automationLock = false; };
+const acquireAutomationLock = async () => {
+    while (automationLock) await new Promise(res => setTimeout(res, 50));
     automationLock = true;
-}
-function releaseAutomationLock() {
-    automationLock = false;
-}
+};
+
+// Track in-flight automation jobs per user to maintain correct 6-video cycle scheduling
+// before they are permanently saved to automation_stats.json upon success.
+let automationPendingCounters = {}; // { username: count }
 
 // --- Pending Automation Logic ---
 async function processPendingAutomation(username) {
@@ -136,7 +135,6 @@ setInterval(() => {
     bundleApi.syncWithBundle().catch(err => console.error('[Bundle Sync Job] Failed:', err.message));
 }, 5 * 60 * 1000);
 
-// Periodically cleanup idle channels (every 30 seconds)
 // Periodically cleanup idle channels (every 30 seconds)
 setInterval(async () => {
     try {
@@ -780,7 +778,6 @@ setInterval(cleanupAbandonedSessions, 60 * 60 * 1000); // Check every hour
 
 // --- Video Processing Logic ---
 // Helper to concatenate multiple audio files
-// Helper to concatenate multiple audio files
 async function concatenateAudioFiles(sessionDir) {
     const files = await fs.readdir(sessionDir);
 
@@ -1048,7 +1045,7 @@ async function processVideoQueue() {
     if (isProcessingVideo || videoQueue.length === 0) return;
     isProcessingVideo = true;
     const job = videoQueue.shift();
-    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay, plan, username } = job;
+    const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay, plan, username, deleteChannelOnSuccess } = job;
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
@@ -1167,9 +1164,35 @@ async function processVideoQueue() {
             publishAt
         };
 
+        // --- SUCCESS: Update Permanent Automation Stats ---
+        if (username) {
+            await acquireAutomationLock();
+            try {
+                const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
+                stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
+
+                const currentCount = (stats[username] || 0) + 1;
+                if (currentCount >= 6) {
+                    console.log(`[Queue] 🏆 6-video cycle complete for ${username}. Marking ${channelId} as EXHAUSTED.`);
+                    const channelMeta = job.channelMeta || (await mp3toytChannels.getChannel(channelId, username));
+                    if (channelMeta) {
+                        await mp3toytChannels.saveChannel({ ...channelMeta, status: 'exhausted' }, username);
+                    }
+                    stats[username] = 0;
+                } else {
+                    stats[username] = currentCount;
+                }
+
+                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                console.log(`[Queue] Automation stats updated for ${username}: ${stats[username]}/6`);
+            } finally {
+                releaseAutomationLock();
+            }
+        }
+
         // If the channel was marked for deletion during the queuing phase, delete it NOW after success
-        if (job.deleteChannelOnSuccess) {
-            console.log(`[Queue] Final upload for cycle complete on ${channelId}. Deleting from system.`);
+        if (deleteChannelOnSuccess) {
+            console.log(`[Queue] Successfully uploaded 6th video. Permanently deleting exhausted channel/token: ${channelId}`);
             try {
                 await mp3toytChannels.deleteChannel(channelId, username);
                 await deleteToken(channelId);
@@ -1193,6 +1216,11 @@ async function processVideoQueue() {
             }
         }
     } finally {
+        // Always decrement pending counter regardless of success/failure
+        if (username && automationPendingCounters[username] > 0) {
+            automationPendingCounters[username]--;
+        }
+
         // Delay cleanup to avoid race conditions with the client starting a new session
         setTimeout(async () => {
             const sessionDir = path.dirname(audioPath);
@@ -1363,25 +1391,29 @@ router.post('/start-automation', async (req, res) => {
                 return res.status(400).json({ success: false, error: 'No active channels available.' });
             }
 
-            activeUserCount = stats[username] || 0;
-            activeChannel = allChannels[0];
-            const nextCount = activeUserCount + 1;
-            activeDeleteOnSuccess = nextCount >= 6;
+            const savedCount = stats[username] || 0;
+            const pendingCount = automationPendingCounters[username] || 0;
+            const effectiveCount = savedCount + pendingCount;
 
-            console.log(`[Automation] Consuming Channel: ${activeChannel.channelTitle} (ID: ${activeChannel.channelId}) | Count: ${activeUserCount}/6`);
-
-            // Increment and save stats immediately
-            stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
-
-            if (activeDeleteOnSuccess) {
-                console.log(`[Automation] 🏆 Final upload for ${activeChannel.channelTitle}. Marking as EXHAUSTED.`);
-                await mp3toytChannels.saveChannel({ ...activeChannel, status: 'exhausted' }, username);
-                stats[username] = 0;
+            // Rotate channels based on 6-video chunks including pending
+            const channelIndex = Math.floor(effectiveCount / 6);
+            if (channelIndex >= allChannels.length) {
+                // If we ran out of available channels for the pending backlog
+                console.log(`[Automation] ⚠️ Backlog exceeds available channels. Using last channel.`);
+                activeChannel = allChannels[allChannels.length - 1];
             } else {
-                stats[username] = nextCount;
+                activeChannel = allChannels[channelIndex];
             }
 
-            await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+            // Determine if this specific upload will trigger the switch (6th video of its channel)
+            const nextCount = (effectiveCount + 1);
+            activeUserCount = effectiveCount; // Used for scheduling logic below
+            activeDeleteOnSuccess = nextCount % 6 === 0;
+
+            console.log(`[Automation] Consuming Channel: ${activeChannel.channelTitle} (ID: ${activeChannel.channelId}) | Saved: ${savedCount}, Pending: ${pendingCount}, Total Assigned: ${nextCount}/6`);
+
+            // Track this as pending immediately to "reserve" the slot
+            automationPendingCounters[username] = (automationPendingCounters[username] || 0) + 1;
 
         } finally {
             releaseAutomationLock();
@@ -1526,6 +1558,10 @@ router.post('/start-automation', async (req, res) => {
             } catch (bgError) {
                 console.error(`[Automation BG Error] Session ${sessionId}:`, bgError.message);
                 jobStatus[sessionId] = { status: 'failed', message: bgError.message };
+                // Decrement pending counter if the background job fails
+                if (username && automationPendingCounters[username] > 0) {
+                    automationPendingCounters[username]--;
+                }
             }
         })();
 
