@@ -1349,6 +1349,7 @@ router.post('/start-automation', async (req, res) => {
         let activeChannel;
         let activeDeleteOnSuccess;
         let activeUserCount;
+        let allChannels = [];
 
         try {
             if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
