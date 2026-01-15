@@ -488,6 +488,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Automation Modal Paste Buttons
+    const pasteAutoAudioBtn = document.getElementById('paste-auto-audio-btn');
+    const pasteAutoImageBtn = document.getElementById('paste-auto-image-btn');
+    const autoAudioLinksInput = document.getElementById('auto-audio-links');
+    const autoImageLinkInput = document.getElementById('auto-image-link');
+
+    if (pasteAutoAudioBtn) {
+        pasteAutoAudioBtn.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && autoAudioLinksInput) {
+                    // Split clipboard text and existing text into normalized arrays
+                    const existingLinks = autoAudioLinksInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                    const newLinks = text.split(/[\n,]+/).map(l => l.trim()).filter(l => l.length > 0);
+
+                    // Filter out duplicates
+                    const uniqueNewLinks = newLinks.filter(l => !existingLinks.includes(l));
+
+                    if (uniqueNewLinks.length > 0) {
+                        const separator = autoAudioLinksInput.value.trim().length > 0 ? '\n' : '';
+                        autoAudioLinksInput.value = autoAudioLinksInput.value.trim() + separator + uniqueNewLinks.join('\n');
+                        showNotification(`Added ${uniqueNewLinks.length} new links.`);
+                    } else if (newLinks.length > 0) {
+                        showNotification('Specified links are already in the list.', 'info');
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to read clipboard:', err);
+                showNotification('Clipboard access denied or empty', 'error');
+            }
+        });
+    }
+
+    if (pasteAutoImageBtn) {
+        pasteAutoImageBtn.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && autoImageLinkInput) {
+                    autoImageLinkInput.value = text;
+                }
+            } catch (err) {
+                console.error('Failed to read clipboard:', err);
+                showNotification('Clipboard access denied or empty', 'error');
+            }
+        });
+    }
+
     // --- Image Editor ---
     const editorModal = document.getElementById('imageEditorModal');
     const editorImage = document.getElementById('editorImage');

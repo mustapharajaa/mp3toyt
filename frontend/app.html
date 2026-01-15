@@ -1056,14 +1056,23 @@
 
             <div class="form-group">
                 <label>Audio Links (One per line)</label>
-                <textarea id="auto-audio-links"
-                    placeholder="https://youtube.com/watch?v=...&#10;https://youtube.com/watch?v=..."
-                    style="min-height: 120px;"></textarea>
+                <div style="display: flex; gap: 10px;">
+                    <textarea id="auto-audio-links"
+                        placeholder="https://youtube.com/watch?v=...&#10;https://youtube.com/watch?v=..."
+                        style="min-height: 120px; flex: 1;"></textarea>
+                    <button type="button" id="paste-auto-audio-btn" style="padding: 10px 15px; height: 40px;"
+                        title="Paste"><i class="fas fa-paste"></i></button>
+                </div>
             </div>
 
             <div class="form-group">
                 <label>Thumbnail Image URL (Optional)</label>
-                <input type="text" id="auto-image-link" placeholder="https://example.com/image.jpg">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="auto-image-link" placeholder="https://example.com/image.jpg"
+                        style="flex: 1;">
+                    <button type="button" id="paste-auto-image-btn" style="padding: 10px 15px;" title="Paste"><i
+                            class="fas fa-paste"></i></button>
+                </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 20px;">
