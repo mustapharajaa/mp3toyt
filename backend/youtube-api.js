@@ -1626,6 +1626,7 @@ export async function uploadVideo(channelId, videoPath, videoMetadata, onProgres
     let attempts = 3;
     for (let i = 1; i <= attempts; i++) {
         try {
+            let lastPercent = -1;
             const response = await youtube.videos.insert({
                 part: 'snippet,status',
                 requestBody: {
@@ -1646,8 +1647,11 @@ export async function uploadVideo(channelId, videoPath, videoMetadata, onProgres
                 onUploadProgress: evt => {
                     const progress = (evt.bytesRead / fileSize) * 100;
                     const percent = Math.round(progress);
-                    process.stdout.write(`\r[YouTubeAPI] Upload Progress: ${percent}%`);
-                    if (percent === 100) console.log(); // Final newline when done
+                    if (percent !== lastPercent) {
+                        process.stdout.write(`\r[YouTubeAPI] Upload Progress: ${percent}%`);
+                        if (percent === 100) console.log(); // Final newline only once
+                        lastPercent = percent;
+                    }
                     if (onProgress) onProgress(percent);
                 }
             });
