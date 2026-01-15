@@ -1731,7 +1731,21 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
             await mp3toytChannels.addChannel(channelData);
             console.log(`[Auth] Channel saved.`);
 
-            return res.redirect(`/?new_channel_id=${savedAuth.channelId}`);
+            res.send(`
+                <html>
+                <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f0f2f5; margin: 0;">
+                    <script>
+                        window.newChannelId = "${savedAuth.channelId}";
+                        if (window.opener) {
+                            window.opener.location.href = '/app?success=youtube&new_channel_id=' + window.newChannelId;
+                            window.close();
+                        } else {
+                            window.location.href = '/app?success=youtube&new_channel_id=' + window.newChannelId;
+                        }
+                    </script>
+                </body>
+                </html>
+            `);
         } else {
             console.error('[Auth] Failed to obtain valid channel info from token.');
             return res.status(500).send('Failed to authenticate with YouTube.');
