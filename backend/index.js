@@ -113,7 +113,11 @@ async function triggerAutomationInternal(links, thumbUrl, username) {
             // We need a way to bypass session for internal calls or pass the username
             headers: { 'x-internal-user': username }
         });
-        console.log(`[Pending] Successfully triggered: ${response.data.sessionId}`);
+        if (response.data.isPending) {
+            console.log(`[Pending] Item remained in memory (Capacity Limit reached)`);
+        } else {
+            console.log(`[Pending] Successfully triggered queue: ${response.data.sessionId}`);
+        }
     } catch (err) {
         console.error(`[Pending] Trigger failed:`, err.response?.data?.error || err.message);
     }
@@ -1211,6 +1215,17 @@ async function processVideoQueue() {
             try {
                 await mp3toytChannels.deleteChannel(channelId, username);
                 await deleteToken(channelId);
+
+                // Reset counter to 0 so the next channel starts fresh
+                await acquireAutomationLock();
+                try {
+                    const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
+                    stats[username] = 0;
+                    await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                    console.log(`[Queue] Reset automation counter for ${username} to 0.`);
+                } finally {
+                    releaseAutomationLock();
+                }
             } catch (delErr) {
                 console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
             }
