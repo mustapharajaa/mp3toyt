@@ -168,19 +168,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 channels.forEach(channel => {
+                    const isDisconnected = channel.isConnected === false; // Defaults to true if undefined
+
+                    // 1. Selector Option (Disabled if disconnected)
                     const option = document.createElement('option');
                     option.value = channel.channelId;
-                    option.textContent = `${channel.platform === 'facebook' ? '[FB] ' : ''}${channel.channelTitle}`;
+                    option.textContent = `${isDisconnected ? '[DISCONNECTED] ' : ''}${channel.platform === 'facebook' ? '[FB] ' : ''}${channel.channelTitle}`;
+                    if (isDisconnected) option.disabled = true;
                     channelSelector.appendChild(option);
 
+                    // 2. Dropdown List Item
                     const item = document.createElement('div');
                     item.className = 'channel-item';
                     item.dataset.id = channel.channelId;
                     item.dataset.platform = channel.platform || 'youtube';
 
+                    if (isDisconnected) {
+                        item.classList.add('disconnected');
+                        // User requested "same as" connected - removing visual dimming/grayscale
+                        // item.style.opacity = '0.7'; 
+                    }
+
                     const platformIcon = channel.platform === 'facebook'
                         ? '<i class="fab fa-facebook" style="position: absolute; bottom: 0; right: 0; color: #1877f2; background: white; border-radius: 50%; font-size: 14px;"></i>'
                         : '<i class="fab fa-youtube" style="position: absolute; bottom: 0; right: 0; color: #ff0000; background: white; border-radius: 50%; font-size: 14px;"></i>';
+
+                    // Removing OFFLINE badge as per user request
+                    const discBadge = '';
 
                     item.innerHTML = `
                         <div class="avatar-wrapper">
@@ -190,11 +204,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             ${platformIcon}
                         </div>
 
-                        <div class="channel-title">${channel.channelTitle}</div>
+                        <div class="channel-title">
+                            ${channel.channelTitle}
+                            ${discBadge}
+                        </div>
                     `;
 
                     item.addEventListener('click', (e) => {
-                        if (!e.target.classList.contains('delete-btn')) selectChannel(channel.channelId, channel.platform || 'youtube');
+                        // Allow clicking delete button even if disconnected
+                        if (e.target.classList.contains('delete-btn')) return;
+
+                        if (isDisconnected) {
+                            showNotification('This channel is disconnected. Please re-add it.', 'error');
+                            return;
+                        }
+                        selectChannel(channel.channelId, channel.platform || 'youtube');
                     });
 
                     const deleteBtn = item.querySelector('.delete-btn');
@@ -221,11 +245,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Prioritize newly connected channel
                     const newChan = channels.find(c => c.channelId === newChannelId);
                     selectChannel(newChannelId, newChan.platform || 'youtube');
-                    // Clear the parameter from URL to prevent re-selection on refresh? Optional.
-                } else if (savedId && channels.find(c => c.channelId === savedId)) {
-                    selectChannel(savedId, savedPlatform);
-                } else if (channels.length > 0) {
-                    selectChannel(channels[0].channelId, channels[0].platform || 'youtube');
+                } else {
+                    // Filter for CONNECTED channels only
+                    const connectedChannels = channels.filter(c => c.isConnected !== false);
+
+                    if (savedId && connectedChannels.find(c => c.channelId === savedId)) {
+                        // Restore saved selection ONLY if it's still connected
+                        selectChannel(savedId, savedPlatform);
+                    } else if (connectedChannels.length > 0) {
+                        // Otherwise pick the first CONNECTED channel
+                        selectChannel(connectedChannels[0].channelId, connectedChannels[0].platform || 'youtube');
+                    }
                 }
             }
         } catch (e) {
@@ -676,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const result = await res.json();
                     if (result.success) {
                         showNotification('Saved!');
-                        updateImagePreview(`/temp/${sessionId}/image.jpg?t=${Date.now()}`);
+                        updateImagePreview(`${result.filePath}?t=${Date.now()}`);
                         closeEditor();
                     } else showNotification(result.message || 'Error saving image', 'error');
                 } catch (err) { console.error('Save failed:', err); showNotification('Save failed', 'error'); }

@@ -2,6 +2,7 @@ import { Bundlesocial } from 'bundlesocial';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import * as mp3toytChannels from './channels.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,7 +44,7 @@ async function saveUsage() {
     }
 }
 
-function getUsageForKey(key) {
+export function getUsageForKey(key) {
     const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
     if (!usageData[key] || usageData[key].month !== currentMonth) {
         usageData[key] = {
@@ -199,6 +200,7 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
 
         if (oldestIdx !== -1) {
             const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+
             if (oldestTime > fiveMinutesAgo) {
                 // Throw the standard error string so index.js catches it and sends the friendly 503
                 throw new Error(`No available Bundle.social slots for ${type} (All active < 5 mins)`);
@@ -468,6 +470,7 @@ export async function syncWithBundle() {
                     if (!usage.channels[id]) {
                         usage.channels[id] = { platform: 'youtube', lastActive: new Date().toISOString() };
                     } else {
+                        // Ensure platform is set but DO NOT update lastActive, or we break idle detection
                         usage.channels[id].platform = 'youtube';
                     }
                 });
@@ -498,13 +501,15 @@ export async function cleanupIdleChannels() {
     const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
     let disconnectsCount = 0;
 
+    const disconnectedList = []; // Track what we disconnected
+
     for (const inst of instances) {
         const usage = getUsageForKey(inst.key);
         const channelEntries = Object.entries(usage.channels);
 
         // Check YouTube idle status
+        const ytChannels = channelEntries.filter(([_, data]) => data.platform === 'youtube');
         if (usage.youtubeConnected) {
-            const ytChannels = channelEntries.filter(([_, data]) => data.platform === 'youtube');
             // SAFETY: Only disconnect if we HAVE channel data and all are idle.
             // If ytChannels.length === 0, it means sync hasn't found them yet, so DON'T disconnect.
             const allYtIdle = ytChannels.length > 0 && ytChannels.every(([_, data]) =>
@@ -515,12 +520,20 @@ export async function cleanupIdleChannels() {
                 console.log(`[Auto-Cleanup] Disconnecting idle YouTube on Key ${inst.id}`);
                 await disconnectPlatform(inst.id, 'YOUTUBE');
                 disconnectsCount++;
+                disconnectedList.push({ instanceId: inst.id, platform: 'youtube' });
             }
+        } else if (ytChannels.length > 0) {
+            // Platform is disconnected but we still have channel data -> Zombie data!
+            // Clean it up and notify so channels.json gets updated
+            console.log(`[Auto-Cleanup] Found orphaned YouTube channels on disconnected Key ${inst.id}. Cleaning up.`);
+            ytChannels.forEach(([id]) => delete usage.channels[id]);
+            disconnectedList.push({ instanceId: inst.id, platform: 'youtube' });
+            await saveUsage();
         }
 
         // Check Facebook idle status
+        const fbChannels = channelEntries.filter(([_, data]) => data.platform === 'facebook');
         if (usage.facebookConnected) {
-            const fbChannels = channelEntries.filter(([_, data]) => data.platform === 'facebook');
             // SAFETY: Only disconnect if we HAVE channel data and all are idle.
             const allFbIdle = fbChannels.length > 0 && fbChannels.every(([_, data]) =>
                 new Date(data.lastActive).getTime() < tenMinutesAgo
@@ -530,13 +543,22 @@ export async function cleanupIdleChannels() {
                 console.log(`[Auto-Cleanup] Disconnecting idle Facebook on Key ${inst.id}`);
                 await disconnectPlatform(inst.id, 'FACEBOOK');
                 disconnectsCount++;
+                disconnectedList.push({ instanceId: inst.id, platform: 'facebook' });
             }
+        } else if (fbChannels.length > 0) {
+            // Platform is disconnected but we still have channel data -> Zombie data!
+            console.log(`[Auto-Cleanup] Found orphaned Facebook channels on disconnected Key ${inst.id}. Cleaning up.`);
+            fbChannels.forEach(([id]) => delete usage.channels[id]);
+            disconnectedList.push({ instanceId: inst.id, platform: 'facebook' });
+            await saveUsage();
         }
     }
 
     if (disconnectsCount > 0) {
         console.log(`[Auto-Cleanup] Cleaned up ${disconnectsCount} idle social accounts.`);
     }
+
+    return disconnectedList; // Return the list for external status updates
 }
 
 export async function disconnectPlatform(instanceId, type) {
@@ -558,21 +580,101 @@ export async function disconnectPlatform(instanceId, type) {
         if (typeUpper === 'FACEBOOK') {
             usage.facebookConnected = false;
             // Remove FB channel IDs
+            const fbIds = [];
             Object.entries(usage.channels).forEach(([id, data]) => {
-                if (data.platform === 'facebook') delete usage.channels[id];
+                if (data.platform === 'facebook') {
+                    delete usage.channels[id];
+                    fbIds.push(id);
+                }
             });
+            // Update channels.json
+            if (fbIds.length > 0) {
+                const allChans = await mp3toytChannels.getAllChannelsRaw();
+                for (const cid of fbIds) {
+                    const match = allChans.find(c => c.channelId === cid);
+                    if (match) {
+                        await mp3toytChannels.saveChannel({ ...match, status: 'disconnected' }, match.username);
+                    }
+                }
+            }
         }
         if (typeUpper === 'YOUTUBE') {
             usage.youtubeConnected = false;
             // Remove YT channel IDs
+            const ytIds = [];
             Object.entries(usage.channels).forEach(([id, data]) => {
-                if (data.platform === 'youtube') delete usage.channels[id];
+                if (data.platform === 'youtube') {
+                    delete usage.channels[id];
+                    ytIds.push(id);
+                }
             });
+            // Update channels.json
+            if (ytIds.length > 0) {
+                const allChans = await mp3toytChannels.getAllChannelsRaw();
+                for (const cid of ytIds) {
+                    const match = allChans.find(c => c.channelId === cid);
+                    if (match) {
+                        await mp3toytChannels.saveChannel({ ...match, status: 'disconnected' }, match.username);
+                    }
+                }
+            }
         }
         await saveUsage();
 
         return { success: true };
     } catch (error) {
+        // If Bundle says "400", it likely means "Already disconnected" or "Not found".
+        // In this case, we SHOULD clear our local state to match reality and break loops.
+        if (error.status === 400 || (error.message && error.message.includes('400'))) {
+            console.warn(`[Bundle] Disconnect returned 400 (likely already disconnected). Clearing local state for ${type}.`);
+
+            // DUPLICATED CLEANUP LOGIC to ensure we clean up locally
+            const usage = getUsageForKey(inst.key);
+            const typeUpper = type.toUpperCase();
+
+            if (typeUpper === 'FACEBOOK') {
+                usage.facebookConnected = false;
+                const fbIds = [];
+                Object.entries(usage.channels).forEach(([id, data]) => {
+                    if (data.platform === 'facebook') {
+                        delete usage.channels[id];
+                        fbIds.push(id);
+                    }
+                });
+                if (fbIds.length > 0) {
+                    const allChans = await mp3toytChannels.getAllChannelsRaw();
+                    for (const cid of fbIds) {
+                        const match = allChans.find(c => c.channelId === cid);
+                        if (match) {
+                            await mp3toytChannels.saveChannel({ ...match, status: 'disconnected' }, match.username);
+                        }
+                    }
+                }
+            }
+            if (typeUpper === 'YOUTUBE') {
+                usage.youtubeConnected = false;
+                const ytIds = [];
+                Object.entries(usage.channels).forEach(([id, data]) => {
+                    if (data.platform === 'youtube') {
+                        delete usage.channels[id];
+                        ytIds.push(id);
+                    }
+                });
+                if (ytIds.length > 0) {
+                    const allChans = await mp3toytChannels.getAllChannelsRaw();
+                    for (const cid of ytIds) {
+                        const match = allChans.find(c => c.channelId === cid);
+                        if (match) {
+                            await mp3toytChannels.saveChannel({ ...match, status: 'disconnected' }, match.username);
+                        }
+                    }
+                }
+            }
+            await saveUsage();
+
+            return { success: true }; // Treat as success
+        }
+
         console.error(`[Bundle] Error disconnecting ${type}:`, error.message);
         return { success: false, error: error.message };
     }

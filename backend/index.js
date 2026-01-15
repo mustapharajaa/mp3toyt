@@ -68,8 +68,34 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // Periodically cleanup idle channels (every 30 seconds)
-setInterval(() => {
-    bundleApi.cleanupIdleChannels().catch(err => console.error('[Auto-Cleanup Job] Failed:', err.message));
+// Periodically cleanup idle channels (every 30 seconds)
+setInterval(async () => {
+    try {
+        const disconnectedItems = await bundleApi.cleanupIdleChannels();
+        if (disconnectedItems && disconnectedItems.length > 0) {
+            console.log(`[Auto-Cleanup] Updating status for ${disconnectedItems.length} disconnected items...`);
+            // Update channels.json for each disconnected instance
+            const allChannels = await mp3toytChannels.getAllChannelsRaw(); // Need raw access or method to find by instance
+
+            for (const item of disconnectedItems) {
+                // Find channel(s) that match this instanceId and platform
+                const matches = allChannels.filter(c =>
+                    c.bundleInstanceId === item.instanceId &&
+                    (!c.platform || c.platform.toLowerCase() === item.platform.toLowerCase())
+                );
+
+                for (const match of matches) {
+                    console.log(`[Auto-Cleanup] Marking channel ${match.channelTitle} (${match.channelId}) as disconnected.`);
+                    await mp3toytChannels.saveChannel({
+                        ...match,
+                        status: 'disconnected'
+                    }, match.username);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Auto-Cleanup Job] Failed:', err.message);
+    }
 }, 30 * 1000);
 
 async function disconnectUserBundleChannels(username) {
@@ -285,7 +311,7 @@ async function downloadImage(url, imagePath, username, sessionId) {
         console.log(`[Thumbnail] Detecting YouTube URL: ${url}`);
 
         // Fast Path: Extract ID using regex
-        const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
+        const videoIdMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/);
         const videoId = videoIdMatch ? videoIdMatch[1] : null;
 
         if (videoId) {
@@ -561,10 +587,35 @@ router.get('/channels', async (req, res) => {
                     })();
                 }
 
+                // Check if the channel's API slot is actually connected (for UI disabling)
+                // Check if the channel's API slot is actually connected (for UI disabling)
+                let isConnected = true;
+                if (c.bundleInstanceId !== undefined) {
+                    // Fix: Resolve Instance ID (index) to actual API Key to get accurate usage
+                    const inst = bundleApi.getInstanceById(c.bundleInstanceId);
+                    // Fallback to ID if instance lookup fails (shouldn't happen)
+                    const lookupKey = inst ? inst.key : c.bundleInstanceId;
+                    const usage = bundleApi.getUsageForKey(lookupKey);
+                    let liveConnected = true;
+                    if (c.platform === 'facebook' && !usage.facebookConnected) liveConnected = false;
+                    if (c.platform === 'youtube' && !usage.youtubeConnected) liveConnected = false;
+
+                    // If live check fails, fall back to stored status if it says 'connected'
+                    // This handles cases where Bundle API sync hasn't run yet or failed temporarily
+                    if (!liveConnected) {
+                        if (c.status === 'connected') {
+                            liveConnected = true;
+                        } else {
+                            isConnected = false;
+                        }
+                    }
+                }
+
                 return {
                     ...c,
                     thumbnail: isCached ? localLogoUrl : c.thumbnail,
-                    platform: c.platform || 'youtube'
+                    platform: c.platform || 'youtube',
+                    isConnected: isConnected
                 };
             }));
 
@@ -1554,7 +1605,9 @@ async function claimBundleChannels(username, targetInstanceId = null) {
                 thumbnail: ch.thumbnail,
                 platform: ch.platform,
                 socialAccountId: ch.socialAccountId,
-                bundleInstanceId: ch.bundleInstanceId
+                socialAccountId: ch.socialAccountId,
+                bundleInstanceId: ch.bundleInstanceId,
+                status: 'connected'
             }, username);
 
             // IMMEDIATE TIMESTAMP: Mark as active NOW so the 5-min timer starts ticking instantly.

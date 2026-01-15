@@ -70,6 +70,7 @@ async function saveChannel(channelData, username) {
         ...channelData,
         username: username,
         updatedAt: now,
+        status: channelData.status || 'connected',
     };
 
     if (existingIndex >= 0) {
