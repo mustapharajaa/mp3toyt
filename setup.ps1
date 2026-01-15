@@ -208,41 +208,82 @@ if (-not (Test-Path $certPath)) {
 
 Write-Host '--- Cloudflare Tunnel Setup ---' -ForegroundColor Cyan
 $tunnelName = "mp3-rdp-tunnel"
+$cloudflaredDir = Join-Path $HOME ".cloudflared"
 
-# More robust check: Does the specific tunnel name exist on this machine?
-$tunnelList = cloudflared tunnel list
-$specificTunnel = $tunnelList | Select-String "\s$tunnelName\s"
+# Check if credentials JSON file exists locally (most reliable check)
+$jsonFiles = Get-ChildItem $cloudflaredDir -Filter "*.json" -ErrorAction SilentlyContinue
+$hasLocalCredentials = $jsonFiles.Count -gt 0
 
-$hasKeys = $false
-if ($specificTunnel) {
-    # If it's in the list with an ID, it means the local credentials file exists
-    $hasKeys = $true
-}
+# List tunnels from Cloudflare
+Write-Host "Checking Cloudflare tunnels..." -ForegroundColor Yellow
+$tunnelList = cloudflared tunnel list 2>&1 | Out-String
+$tunnelInCloud = $tunnelList | Select-String "\s$tunnelName\s"
 
-if (-not $hasKeys) {
-    $existingTunnels = $tunnelList | Where-Object { $_ -match "[0-9a-f]{8}-" }
-    if ($existingTunnels) {
-        Write-Host "Found existing tunnels on this machine:" -ForegroundColor Yellow
-        $existingTunnels | ForEach-Object { Write-Host "  - $_" }
-        $tunnelName = Read-Host "Enter the tunnel name you want to use (or press Enter for mp3-rdp-tunnel)"
-        if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
+# Decision tree for tunnel setup
+if ($hasLocalCredentials) {
+    Write-Host "✓ Tunnel credentials found locally." -ForegroundColor Green
+    $foundCredFile = $jsonFiles[0].FullName
+    Write-Host "  Credential file: $($jsonFiles[0].Name)" -ForegroundColor Gray
+} else {
+    Write-Host "⚠ No local tunnel credentials found." -ForegroundColor Yellow
+    
+    if ($tunnelInCloud) {
+        Write-Host "⚠ Tunnel '$tunnelName' exists in Cloudflare but credentials are missing locally!" -ForegroundColor Yellow
+        Write-Host "This can happen if credentials were deleted or this is a different machine." -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "Deleting old tunnel and creating fresh one..." -ForegroundColor Cyan
+        
+        # Delete old tunnel and create new one
+        cloudflared tunnel delete -f $tunnelName 2>$null | Out-Null
+        Start-Sleep -Seconds 2
+        cloudflared tunnel create $tunnelName
     } else {
-        Write-Host "No tunnels or keys found for '$tunnelName' on this machine." -ForegroundColor Yellow
-        $tunnelName = Read-Host "Enter a name for your tunnel on this machine (default: mp3-rdp-tunnel)"
-        if (-not $tunnelName) { $tunnelName = "mp3-rdp-tunnel" }
-        
-        # Check if they picked a name that exists on Cloudflare but not locally
-        $inCloud = cloudflared tunnel list | Select-String "\s$tunnelName\s"
-        if ($inCloud) {
-             Write-Host "Note: Tunnel '$tunnelName' exists on Cloudflare. If you don't have the keys, this command might fail." -ForegroundColor Gray
-        }
-        
-        Write-Host "Creating Cloudflare Tunnel: $tunnelName..." -ForegroundColor Yellow
+        Write-Host "Creating new tunnel '$tunnelName'..." -ForegroundColor Cyan
         cloudflared tunnel create $tunnelName
     }
-} else {
-    Write-Host "Tunnel '$tunnelName' is authorized and ready on this machine." -ForegroundColor Green
+    
+    # Get the newly created credential file
+    $jsonFiles = Get-ChildItem $cloudflaredDir -Filter "*.json" -ErrorAction SilentlyContinue
+    if ($jsonFiles.Count -gt 0) {
+        $foundCredFile = $jsonFiles[0].FullName
+        Write-Host "✓ Tunnel created successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "✗ Failed to create tunnel credentials!" -ForegroundColor Red
+        exit 1
+    }
 }
+
+# Create backup of credentials to prevent future loss
+$backupDir = Join-Path $PSScriptRoot "tunnel-backup"
+if (-not (Test-Path $backupDir)) {
+    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+}
+Write-Host "Creating backup of tunnel credentials..." -ForegroundColor Yellow
+Copy-Item "$cloudflaredDir\cert.pem" "$backupDir\cert.pem" -Force -ErrorAction SilentlyContinue
+Copy-Item "$cloudflaredDir\*.json" "$backupDir\" -Force -ErrorAction SilentlyContinue
+Write-Host "✓ Backup saved to: $backupDir" -ForegroundColor Green
+
+# Extract tunnel ID from the JSON filename
+$tunnelId = (Get-Item $foundCredFile).BaseName
+
+# Create a config file for the tunnel (more reliable than command-line)
+$configFile = Join-Path $cloudflaredDir "config.yml"
+Write-Host "Creating tunnel config file..." -ForegroundColor Yellow
+$configContent = @"
+tunnel: $tunnelId
+credentials-file: $foundCredFile
+
+ingress:
+  - service: http://localhost:8000
+"@
+[System.IO.File]::WriteAllText($configFile, $configContent)
+Write-Host "✓ Config file created at: $configFile" -ForegroundColor Green
+
+# Route DNS
+Write-Host "Setting up DNS routing..." -ForegroundColor Yellow
+$domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
+cloudflared tunnel route dns -f $tunnelName $domainOnly 2>&1 | Out-Null
+Write-Host "✓ DNS routed: $domainOnly -> $tunnelName" -ForegroundColor Green
 
 # Cleanup existing processes to free up ports
 Write-Host 'Cleaning up old processes...' -ForegroundColor Cyan
@@ -258,13 +299,20 @@ npm install
 
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 Write-Host 'SETUP COMPLETE!' -ForegroundColor Green
-Write-Host '1. Run this command to start your server:'
+Write-Host '1. Run this command to start your server:' -ForegroundColor White
 Write-Host '   npm start' -ForegroundColor Yellow
 Write-Host ''
-Write-Host "2. To put your site online, open a NEW terminal and run these TWO commands:"
-$domainOnly = $currentBaseUrl -replace 'https?://', '' -replace '/.*', ''
-Write-Host "   cloudflared tunnel route dns -f $tunnelName $domainOnly" -ForegroundColor Yellow
-Write-Host "   cloudflared tunnel run --url http://localhost:8000 $tunnelName" -ForegroundColor Yellow
+Write-Host '2. To put your site online, choose ONE option:' -ForegroundColor White
+Write-Host ''
+Write-Host '   Option A - Manual (stops when terminal closes):' -ForegroundColor Cyan
+Write-Host "   cloudflared tunnel run $tunnelName" -ForegroundColor Yellow
+Write-Host ''
+Write-Host '   Option B - PM2 Auto-start (recommended, runs in background):' -ForegroundColor Cyan
+Write-Host "   pm2 start cloudflared --name cf-tunnel -- tunnel run $tunnelName" -ForegroundColor Yellow
+Write-Host '   pm2 save' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '✓ Tunnel credentials backed up to: tunnel-backup/' -ForegroundColor Green
+Write-Host '✓ If credentials are lost, they can be restored from backup' -ForegroundColor Green
 Write-Host '-----------------------------------' -ForegroundColor Cyan
 
 # Force open the dashboard in the RDP browser

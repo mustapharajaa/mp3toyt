@@ -1,0 +1,17 @@
+clouad flare tunnel error fix 
+
+
+# First, check if the credentials file exists
+Get-ChildItem C:\Users\Administrator\.cloudflared\*.json
+
+# If you see a .json file, copy it:
+Copy-Item C:\Users\Administrator\.cloudflared\54abea9d-b960-4999-807d-c9434b610e46.json C:\Users\Administrator\.cloudflared\
+
+# If NO .json file exists, delete the tunnel properly:
+cloudflared tunnel delete -f mp3-rdp-tunnel
+
+# Then create it fresh:
+cloudflared tunnel create mp3-rdp-tunnel
+
+# Start the tunnel:
+cloudflared tunnel run --url http://localhost:8000 mp3-rdp-tunnel
