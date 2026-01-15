@@ -158,6 +158,21 @@ if (-not (Test-Path $usersFile)) {
     [System.IO.File]::WriteAllText($usersFile, "[]")
 }
 
+$adminChannelsFile = Join-Path $PSScriptRoot "admin_channels.json"
+if (-not (Test-Path $adminChannelsFile)) { 
+    [System.IO.File]::WriteAllText($adminChannelsFile, '{"channels": []}')
+}
+
+$automationStatsFile = Join-Path $PSScriptRoot "automation_stats.json"
+if (-not (Test-Path $automationStatsFile)) { 
+    [System.IO.File]::WriteAllText($automationStatsFile, "{}")
+}
+
+$pendingAutomationFile = Join-Path $PSScriptRoot "pending_automation.json"
+if (-not (Test-Path $pendingAutomationFile)) { 
+    [System.IO.File]::WriteAllText($pendingAutomationFile, "[]")
+}
+
 Write-Host "-----------------------------------" -ForegroundColor Cyan
 Write-Host "Verifying installations:"
 ffmpeg -version | Select-String "version"
