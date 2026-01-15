@@ -1050,6 +1050,7 @@ async function processVideoQueue() {
     isProcessingVideo = true;
     const job = videoQueue.shift();
     const { sessionId, audioPath, imagePath, title, description, tags, visibility, publishAt, channelId, overlay, plan, username, deleteChannelOnSuccess } = job;
+    console.log(`[Queue] Processing job: sessionId=${sessionId}, platform=${job.platform}, publishAt=${publishAt}`);
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {

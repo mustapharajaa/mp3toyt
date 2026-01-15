@@ -343,6 +343,7 @@ export async function postToYoutube(instanceId, channelId, mediaId, text, schedu
 }
 
 async function postToPlatform(instanceId, type, channelId, mediaId, text, scheduledDate = null) {
+    console.log(`[Bundle] postToPlatform: type=${type}, channelId=${channelId}, scheduledDate=${scheduledDate}`);
     const inst = getInstanceById(instanceId);
     if (!inst) throw new Error('Invalid Bundle instance ID');
 
@@ -384,13 +385,32 @@ async function postToPlatform(instanceId, type, channelId, mediaId, text, schedu
         const safeTitle = (rawTitle || 'new nusic video').substring(0, 100);
         const safeText = rawDescription || '';
 
-        const postDate = scheduledDate || new Date(Date.now() + 10000).toISOString();
+        // To ensure immediate processing by Bundle and native scheduling by YouTube/Facebook:
+        // 1. Set status to 'SCHEDULED' (valid SDK status).
+        // 2. Set postDate to 'now' so Bundle starts the upload/post process immediately.
+        // 3. For YouTube, use 'publishAt' (standard YouTube API param).
+        // 4. For Facebook, use 'nativeScheduleTime' (Bundle-specific param).
+        const postDate = new Date().toISOString();
 
         let platformData = {};
         if (type === 'FACEBOOK') {
-            platformData.FACEBOOK = { text, uploadIds: [mediaId], privacy: 'PUBLIC' };
+            platformData.FACEBOOK = {
+                text,
+                uploadIds: [mediaId],
+                privacy: 'PUBLIC',
+                ...(scheduledDate && scheduledDate.length > 5 && { nativeScheduleTime: scheduledDate })
+            };
         } else {
-            platformData.YOUTUBE = { type: 'VIDEO', text: safeTitle, description: safeText, uploadIds: [mediaId], privacy: 'PUBLIC' };
+            // Native YouTube Scheduling:
+            // The user suggested using 'publishat' (lowercase) and mentioned not using privacy in the same block.
+            const isScheduled = !!(scheduledDate && scheduledDate.length > 5);
+            platformData.YOUTUBE = {
+                type: 'VIDEO',
+                text: safeTitle,
+                description: safeText,
+                uploadIds: [mediaId],
+                ...(isScheduled && { publishat: scheduledDate })
+            };
         }
 
         const response = await inst.bundle.post.postCreate({
@@ -399,7 +419,7 @@ async function postToPlatform(instanceId, type, channelId, mediaId, text, schedu
                 title: safeTitle,
                 socialAccountTypes: [type],
                 postDate: postDate,
-                status: 'SCHEDULED',
+                status: 'SCHEDULED', // Keep as SCHEDULED to pass validation
                 data: platformData
             }
         });
