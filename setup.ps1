@@ -298,11 +298,17 @@ Write-Host '   npm start' -ForegroundColor Yellow
 Write-Host ''
 Write-Host '2. To put your site online, choose ONE option:' -ForegroundColor White
 Write-Host ''
-Write-Host '   Option A - Manual (stops when terminal closes):' -ForegroundColor Cyan
-Write-Host "   cloudflared tunnel run $tunnelName" -ForegroundColor Yellow
+Write-Host '   Option A - Simple background process:' -ForegroundColor Cyan
+Write-Host "   Start-Process -NoNewWindow cloudflared -ArgumentList `"tunnel`",`"run`",`"$tunnelName`"" -ForegroundColor Yellow
 Write-Host ''
-Write-Host '   Option B - PM2 Auto-start (recommended, runs in background):' -ForegroundColor Cyan
-Write-Host "   pm2 start cloudflared --name cf-tunnel -- tunnel run $tunnelName" -ForegroundColor Yellow
+Write-Host '   Option B - With PM2 (auto-restart, better for production):' -ForegroundColor Cyan
+Write-Host '   First, create a batch file:' -ForegroundColor Gray
+Write-Host '   @"' -ForegroundColor Yellow
+Write-Host '   @echo off' -ForegroundColor Yellow
+Write-Host "   cloudflared tunnel run $tunnelName" -ForegroundColor Yellow
+Write-Host '   "@ | Out-File -FilePath ".\start-cf-tunnel.bat" -Encoding ASCII' -ForegroundColor Yellow
+Write-Host '   Then run with PM2:' -ForegroundColor Gray
+Write-Host '   pm2 start ".\start-cf-tunnel.bat" --name cf-tunnel' -ForegroundColor Yellow
 Write-Host '   pm2 save' -ForegroundColor Yellow
 Write-Host ''
 Write-Host '[OK] Tunnel credentials backed up to: tunnel-backup/' -ForegroundColor Green
