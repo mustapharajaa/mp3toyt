@@ -40,7 +40,9 @@ async function getChannelsForUser(username) {
         thumbnail: channel.thumbnail,
         platform: channel.platform || 'youtube',
         socialAccountId: channel.socialAccountId,
-        bundleInstanceId: channel.bundleInstanceId
+        bundleInstanceId: channel.bundleInstanceId,
+        status: channel.status || 'connected',
+        username: channel.username
     }));
 }
 

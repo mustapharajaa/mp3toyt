@@ -23,7 +23,7 @@ function loadCredentials() {
     const credentials = JSON.parse(content);
 
     if (!credentials || (!credentials.installed && !credentials.web)) {
-        throw new Error('credentials.json is empty or invalid. Please download it from Google Cloud Console and replace the placeholder.');
+        throw new Error(`credentials.json at ${path.resolve(CREDENTIALS_PATH)} is empty or invalid. Please download it from Google Cloud Console and replace the placeholder.`);
     }
 
     return credentials;

@@ -958,9 +958,12 @@ async function processVideoQueue() {
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
-        // 1. Resolve channel metadata from local records as the source of truth
-        const userChannels = await mp3toytChannels.getChannelsForUser(username);
-        const channelMeta = userChannels.find(c => c.channelId === channelId);
+        // 1. Resolve channel metadata
+        let channelMeta = job.channelMeta;
+        if (!channelMeta) {
+            const userChannels = await mp3toytChannels.getChannelsForUser(username);
+            channelMeta = userChannels.find(c => c.channelId === channelId);
+        }
 
         if (!channelMeta) {
             throw new Error(`Channel ${channelId} not found for user ${username}.`);
@@ -1069,6 +1072,13 @@ async function processVideoQueue() {
             platform,
             publishAt
         };
+
+        // If the channel was marked as exhausted during the queuing phase, delete it NOW after success
+        if (channelMeta.status === 'exhausted') {
+            console.log(`[Queue] Final upload for exhausted channel ${channelMeta.channelTitle} complete. Deleting from system.`);
+            await mp3toytChannels.deleteChannel(channelMeta.channelId);
+            await deleteToken(channelMeta.channelId);
+        }
 
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
@@ -1196,8 +1206,8 @@ router.post('/start-automation', async (req, res) => {
         console.log(`[Automation] Request from ${username}. Links count: ${links.length}`);
 
         if (username && username !== 'guest') {
-            allChannels = await mp3toytChannels.getChannelsForUser(username);
-            console.log(`[Automation] Found ${allChannels.length} YouTube channels for ${username}`);
+            allChannels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
+            console.log(`[Automation] Found ${allChannels.length} active (non-exhausted) YouTube channels for ${username}`);
         }
 
         if (allChannels.length === 0) {
@@ -1344,7 +1354,8 @@ router.post('/start-automation', async (req, res) => {
                     channelId: targetChannel.channelId,
                     platform,
                     plan: req.session.plan || 'free',
-                    username
+                    username,
+                    channelMeta: targetChannel // Pass full meta to avoid lookups if deleted later
                 });
 
                 // Increment and save stats
@@ -1354,9 +1365,9 @@ router.post('/start-automation', async (req, res) => {
                 stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
 
                 if (nextCount >= 6) {
-                    console.log(`[Automation] 🏆 Channel ${targetChannel.channelTitle} reached 6/6 uploads. DELETING from system...`);
-                    await mp3toytChannels.deleteChannel(targetChannel.channelId);
-                    await deleteToken(targetChannel.channelId); // Clean up the token as well
+                    console.log(`[Automation] 🏆 Channel ${targetChannel.channelTitle} reached 6/6 uploads. Marking as EXHAUSTED...`);
+                    // Mark as exhausted so it's not picked up by the next automation call
+                    await mp3toytChannels.addChannel({ ...targetChannel, status: 'exhausted' });
                     stats[username] = 0; // Reset for next channel in line
                 } else {
                     stats[username] = nextCount;
