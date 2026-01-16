@@ -1399,29 +1399,49 @@ router.post('/start-automation', async (req, res) => {
                         console.log(`[Automation] Reading existing pending automation file...`);
                         pending = await fs.readJson(PENDING_AUTOMATION_PATH);
                         console.log(`[Automation] Found ${pending.length} existing pending items`);
+
+                        // PREVENT MEMORY BLOAT: Limit to max 20 pending items
+                        if (pending.length >= 20) {
+                            console.log(`[Automation] Pending limit reached. Keeping only last 19 items.`);
+                            pending = pending.slice(-19);
+                        }
+
+                        // CLEANUP: Remove items older than 24 hours
+                        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                        const initialLength = pending.length;
+                        pending = pending.filter(item => {
+                            const itemTime = new Date(item.timestamp);
+                            return itemTime > oneDayAgo;
+                        });
+                        if (pending.length < initialLength) {
+                            console.log(`[Automation] Removed ${initialLength - pending.length} old items`);
+                        }
                     }
 
                     const newPendingItem = { links, thumbUrl, username, timestamp: new Date().toISOString() };
                     pending.push(newPendingItem);
-                    console.log(`[Automation] Writing ${pending.length} items to pending automation file...`);
-
-                    await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
-                    console.log(`[Automation] Successfully saved to pending automation file`);
-
-                    releaseAutomationLock();
-                    console.log(`[Automation] Lock released after saving to pending`);
 
                     const responseMessage = allChannels.length === 0
                         ? 'No active channels found. Saved to memory.'
                         : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.';
 
-                    console.log(`[Automation] Sending success response: ${responseMessage}`);
-
-                    return res.status(200).json({
+                    // SEND RESPONSE IMMEDIATELY to prevent UI freeze
+                    releaseAutomationLock();
+                    console.log(`[Automation] Sending immediate response to prevent slowness`);
+                    res.status(200).json({
                         success: true,
                         isPending: true,
-                        message: responseMessage
+                        message: responseMessage,
+                        pendingCount: pending.length
                     });
+
+                    // Write file in background (non-blocking)
+                    console.log(`[Automation] Writing ${pending.length} items (background)...`);
+                    fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 })
+                        .then(() => console.log(`[Automation] Successfully saved`))
+                        .catch(err => console.error(`[Automation] Save error:`, err.message));
+
+                    return;
                 } catch (pendingError) {
                     console.error(`[Automation CRITICAL ERROR] Failed to save pending automation:`, pendingError);
                     releaseAutomationLock();
