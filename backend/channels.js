@@ -11,29 +11,43 @@ const ADMIN_USERNAME = 'erraja';
 async function readChannels(username = null) {
     try {
         let channels = [];
+        console.log(`[Channels Debug] Reading channels for username: ${username || 'ALL'}`);
 
         // Always try to read main channels
-        if (await fs.pathExists(CHANNELS_PATH)) {
+        const channelsPathExists = await fs.pathExists(CHANNELS_PATH);
+        console.log(`[Channels Debug] CHANNELS_PATH (${CHANNELS_PATH}) exists: ${channelsPathExists}`);
+
+        if (channelsPathExists) {
             const data = await fs.readFile(CHANNELS_PATH, 'utf8');
             const jsonData = JSON.parse(data);
             channels = jsonData.channels || [];
+            console.log(`[Channels Debug] Loaded ${channels.length} channels from CHANNELS_PATH`);
         }
 
         // Also try to read admin channels if file exists
-        if (await fs.pathExists(ADMIN_CHANNELS_PATH)) {
+        const adminPathExists = await fs.pathExists(ADMIN_CHANNELS_PATH);
+        console.log(`[Channels Debug] ADMIN_CHANNELS_PATH (${ADMIN_CHANNELS_PATH}) exists: ${adminPathExists}`);
+
+        if (adminPathExists) {
             const adminData = await fs.readFile(ADMIN_CHANNELS_PATH, 'utf8');
             const adminJson = JSON.parse(adminData);
             const adminChannels = adminJson.channels || [];
+            console.log(`[Channels Debug] Loaded ${adminChannels.length} admin channels from ADMIN_CHANNELS_PATH`);
             // Merge or filter? Usually we want all for lookup functions
             channels = [...channels, ...adminChannels];
         }
 
+        console.log(`[Channels Debug] Total channels before filter: ${channels.length}`);
+
         if (username) {
-            return channels.filter(c => c.username === username);
+            const filtered = channels.filter(c => c.username === username);
+            console.log(`[Channels Debug] After filtering for "${username}": ${filtered.length} channels`);
+            console.log(`[Channels Debug] Channel details:`, filtered.map(c => ({ id: c.channelId, title: c.channelTitle, status: c.status, username: c.username })));
+            return filtered;
         }
         return channels;
     } catch (error) {
-        console.error('Error reading channels files:', error);
+        console.error('[Channels Debug] Error reading channels files:', error);
         return [];
     }
 }

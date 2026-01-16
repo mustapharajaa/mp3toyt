@@ -1388,25 +1388,50 @@ router.post('/start-automation', async (req, res) => {
             const effectiveCount = savedCount + pendingCount;
             const channelIndex = Math.floor(effectiveCount / 6);
 
+
             // CAPACITY CHECK: If no channels OR we've assigned all available slots (6 per channel)
             if (allChannels.length === 0 || channelIndex >= allChannels.length) {
                 console.log(`[Automation] No capacity for ${username} (${allChannels.length} channels, ${effectiveCount} assigned). Saving to memory...`);
-                let pending = [];
-                if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
-                    pending = await fs.readJson(PENDING_AUTOMATION_PATH);
-                }
-                pending.push({ links, thumbUrl, username, timestamp: new Date().toISOString() });
-                await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
 
-                releaseAutomationLock();
-                return res.json({
-                    success: true,
-                    isPending: true,
-                    message: allChannels.length === 0
+                try {
+                    let pending = [];
+                    if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
+                        console.log(`[Automation] Reading existing pending automation file...`);
+                        pending = await fs.readJson(PENDING_AUTOMATION_PATH);
+                        console.log(`[Automation] Found ${pending.length} existing pending items`);
+                    }
+
+                    const newPendingItem = { links, thumbUrl, username, timestamp: new Date().toISOString() };
+                    pending.push(newPendingItem);
+                    console.log(`[Automation] Writing ${pending.length} items to pending automation file...`);
+
+                    await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
+                    console.log(`[Automation] Successfully saved to pending automation file`);
+
+                    releaseAutomationLock();
+                    console.log(`[Automation] Lock released after saving to pending`);
+
+                    const responseMessage = allChannels.length === 0
                         ? 'No active channels found. Saved to memory.'
-                        : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.'
-                });
+                        : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.';
+
+                    console.log(`[Automation] Sending success response: ${responseMessage}`);
+
+                    return res.status(200).json({
+                        success: true,
+                        isPending: true,
+                        message: responseMessage
+                    });
+                } catch (pendingError) {
+                    console.error(`[Automation CRITICAL ERROR] Failed to save pending automation:`, pendingError);
+                    releaseAutomationLock();
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Failed to save automation request. Please try again.'
+                    });
+                }
             }
+
 
             activeChannel = allChannels[channelIndex];
 
