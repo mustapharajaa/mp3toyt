@@ -1177,6 +1177,14 @@ async function processVideoQueue() {
                 stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
 
                 const currentCount = (stats[username] || 0) + 1;
+
+                // Store cycle start date if provided (first video of cycle)
+                if (job.cycleStartDateToStore) {
+                    const cycleStartKey = `${username}_cycle_start`;
+                    stats[cycleStartKey] = job.cycleStartDateToStore;
+                    console.log(`[Queue] Stored cycle start date for ${username}: ${job.cycleStartDateToStore}`);
+                }
+
                 if (currentCount >= 6) {
                     console.log(`[Queue] 🏆 6-video cycle complete for ${username}. Marking ${channelId} as EXHAUSTED.`);
                     const channelMeta = job.channelMeta || (await mp3toytChannels.getChannel(channelId, username));
@@ -1184,6 +1192,11 @@ async function processVideoQueue() {
                         await mp3toytChannels.saveChannel({ ...channelMeta, status: 'exhausted' }, username);
                     }
                     stats[username] = 0;
+
+                    // Clear cycle start date when cycle completes
+                    const cycleStartKey = `${username}_cycle_start`;
+                    delete stats[cycleStartKey];
+                    console.log(`[Queue] Cleared cycle start date for ${username}`);
                 } else {
                     stats[username] = currentCount;
                 }
@@ -1222,6 +1235,12 @@ async function processVideoQueue() {
                 try {
                     const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
                     stats[username] = 0;
+
+                    // Clear cycle start date when channel is deleted due to errors
+                    const cycleStartKey = `${username}_cycle_start`;
+                    delete stats[cycleStartKey];
+                    console.log(`[Queue] Cleared cycle start date for ${username} (channel deleted due to error)`);
+
                     await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
                     console.log(`[Queue] Reset automation counter for ${username} to 0.`);
                 } finally {
@@ -1384,6 +1403,10 @@ router.post('/start-automation', async (req, res) => {
             }
 
             const savedCount = stats[username] || 0;
+
+            // Get cycle start date for this channel (if exists)
+            const cycleStartKey = `${username}_cycle_start`;
+            const cycleStartDate = stats[cycleStartKey] ? new Date(stats[cycleStartKey]) : null;
             const pendingCount = automationPendingCounters[username] || 0;
             const effectiveCount = savedCount + pendingCount;
             const channelIndex = Math.floor(effectiveCount / 6);
@@ -1546,35 +1569,46 @@ router.post('/start-automation', async (req, res) => {
                 const cycleIndex = activeUserCount % 6;
                 let visibility = 'public';
                 let publishAt = null;
+                let cycleStartDateToStore = null;
 
                 console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
-                // Calculate base date for the entire cycle
-                let baseDate = new Date();
-
-                // First video: random 0-2 days from now
+                // First video: Establish cycle start date
                 if (cycleIndex === 0) {
                     const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                    const baseDate = new Date();
                     baseDate.setDate(baseDate.getDate() + randomDays);
 
+                    // Store this as the cycle start date
+                    cycleStartDateToStore = baseDate.toISOString();
+
                     if (randomDays === 0) {
-                        console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
+                        console.log(`[Automation] [Mode: PUBLIC] First video uploading immediately. Cycle starts NOW.`);
                     } else {
                         visibility = 'private';
                         const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
                         const randomMin = Math.floor(Math.random() * 60);
                         baseDate.setHours(randomHour, randomMin, 0, 0);
                         publishAt = baseDate.toISOString();
-                        console.log(`[Automation] [Mode: FIRST_SCHEDULED] First video scheduled for ${randomDays} days from now: ${publishAt}`);
+                        cycleStartDateToStore = publishAt;
+                        console.log(`[Automation] [Mode: FIRST_SCHEDULED] Video 1/6 scheduled for ${randomDays} days. Cycle starts: ${publishAt}`);
                     }
                 } else {
-                    // Videos 2-6: Each is 2 days after the previous video
-                    // Total offset = cycleIndex * 2 days from the first video's date
+                    // Videos 2-6: Calculate from stored cycle start date
                     visibility = 'private';
 
-                    // Get the base offset from stored first video date or calculate from cycle
-                    const daysFromToday = cycleIndex * 2; // 2, 4, 6, 8, 10 days from TODAY
-                    baseDate.setDate(baseDate.getDate() + daysFromToday);
+                    // Use the stored cycle start date as base
+                    const baseDate = cycleStartDate ? new Date(cycleStartDate) : new Date();
+
+                    if (!cycleStartDate) {
+                        console.warn(`[Automation] WARNING: No cycle start date found for ${username}. Using today as fallback.`);
+                    } else {
+                        console.log(`[Automation] Using stored cycle start date: ${cycleStartDate}`);
+                    }
+
+                    // Add cycleIndex * 2 days from cycle start
+                    const daysFromCycleStart = cycleIndex * 2; // 2, 4, 6, 8, 10 days
+                    baseDate.setDate(baseDate.getDate() + daysFromCycleStart);
 
                     // Randomize hour (9 AM to 9 PM) and minutes
                     const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
@@ -1582,7 +1616,7 @@ router.post('/start-automation', async (req, res) => {
                     baseDate.setHours(randomHour, randomMin, 0, 0);
 
                     publishAt = baseDate.toISOString();
-                    console.log(`[Automation] [Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled for ${daysFromToday} days from now: ${publishAt}`);
+                    console.log(`[Automation][Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled ${daysFromCycleStart} days from cycle start: ${publishAt}`);
                 }
 
                 // 8. Add to videoQueue
@@ -1604,7 +1638,8 @@ router.post('/start-automation', async (req, res) => {
                     plan: 'free',
                     username,
                     deleteChannelOnSuccess: activeDeleteOnSuccess,
-                    channelMeta: activeChannel
+                    channelMeta: activeChannel,
+                    cycleStartDateToStore: cycleStartDateToStore // Pass to queue for storage
                 });
 
                 console.log(`[Automation] Background tasks queued. Lifetime Total: ${stats.total_lifetime_videos}`);
