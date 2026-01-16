@@ -269,11 +269,51 @@ document.addEventListener('DOMContentLoaded', () => {
         manageChannelsBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent dropdown from closing
             const channelList = document.getElementById('channel-list');
+            const channelListLabel = document.getElementById('channel-list-label');
             const isManaging = channelList.classList.toggle('manage-mode');
+
+            // Update label text
+            if (channelListLabel) {
+                if (isManaging) {
+                    channelListLabel.innerHTML = '<button style="background: #22c55e; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; font-weight: 600;"><i class="fas fa-times"></i> Close</button>';
+                    channelListLabel.style.cursor = 'default';
+
+                    // Make it clickable to exit manage mode
+                    channelListLabel.onclick = () => {
+                        channelList.classList.remove('manage-mode');
+                        channelListLabel.innerHTML = 'Select Account:';
+                        channelListLabel.style.cursor = 'default';
+                        channelListLabel.onclick = null;
+
+                        // Reset manage channels button
+                        manageChannelsBtn.innerHTML = '<i class="fas fa-list-ul" style="color: #4b5563;"></i> Manage Channels';
+                        manageChannelsBtn.style.color = '';
+
+                        // Restore management dropdown
+                        const managementDropdown = document.getElementById('management-dropdown');
+                        if (managementDropdown) {
+                            managementDropdown.style.display = '';
+                        }
+                    };
+                } else {
+                    channelListLabel.innerHTML = 'Select Account:';
+                    channelListLabel.style.cursor = 'default';
+                    channelListLabel.onclick = null;
+                }
+            }
+
             manageChannelsBtn.innerHTML = isManaging ?
                 '<i class="fas fa-check" style="color: #22c55e;"></i> Done Managing' :
                 '<i class="fas fa-list-ul" style="color: #4b5563;"></i> Manage Channels';
             manageChannelsBtn.style.color = isManaging ? '#22c55e' : '';
+
+            // Hide management dropdown when entering manage mode
+            if (isManaging) {
+                const managementDropdown = document.getElementById('management-dropdown');
+                if (managementDropdown) {
+                    managementDropdown.style.display = 'none';
+                }
+            }
         });
     }
 
