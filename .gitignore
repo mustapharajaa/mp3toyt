@@ -1,6 +1,7 @@
 node_modules/
 .env
 credentials.json
+facebook_credentials.json
 tokens.json
 uploads/
 temp/
@@ -15,5 +16,4 @@ users.json
 admin_channels.json
 automation_stats.json
 pending_automation.json
-app-feauters
  
