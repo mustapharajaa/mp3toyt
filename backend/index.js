@@ -1501,6 +1501,12 @@ router.post('/start-automation', async (req, res) => {
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
 
+        // Capture cycleStartDate for use in background async
+        const capturedCycleStartDate = cycleStartDate;
+        const capturedActiveUserCount = activeUserCount;
+        const capturedActiveChannel = activeChannel;
+        const capturedActiveDeleteOnSuccess = activeDeleteOnSuccess;
+
         // 5. Start background processing immediately (Don't block response)
         (async () => {
             try {
@@ -1568,12 +1574,12 @@ router.post('/start-automation', async (req, res) => {
                     console.log(`[Automation] Merging complete: ${finalAudioPath}`);
                 }
                 // 7. Determine Scheduling (6-video cycle, each video 2 days apart)
-                const cycleIndex = activeUserCount % 6;
+                const cycleIndex = capturedActiveUserCount % 6;
                 let visibility = 'public';
                 let publishAt = null;
                 let cycleStartDateToStore = null;
 
-                console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
+                console.log(`[Automation] [User: ${username}] Scheduling for count: ${capturedActiveUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
                 // First video: Establish cycle start date
                 if (cycleIndex === 0) {
@@ -1600,12 +1606,12 @@ router.post('/start-automation', async (req, res) => {
                     visibility = 'private';
 
                     // Use the stored cycle start date as base
-                    const baseDate = cycleStartDate ? new Date(cycleStartDate) : new Date();
+                    const baseDate = capturedCycleStartDate ? new Date(capturedCycleStartDate) : new Date();
 
-                    if (!cycleStartDate) {
+                    if (!capturedCycleStartDate) {
                         console.warn(`[Automation] WARNING: No cycle start date found for ${username}. Using today as fallback.`);
                     } else {
-                        console.log(`[Automation] Using stored cycle start date: ${cycleStartDate}`);
+                        console.log(`[Automation] Using stored cycle start date: ${capturedCycleStartDate}`);
                     }
 
                     // Add cycleIndex * 2 days from cycle start
@@ -1618,12 +1624,12 @@ router.post('/start-automation', async (req, res) => {
                     baseDate.setHours(randomHour, randomMin, 0, 0);
 
                     publishAt = baseDate.toISOString();
-                    console.log(`[Automation][Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled ${daysFromCycleStart} days from cycle start: ${publishAt}`);
+                    console.log(`[Automation] [Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled ${daysFromCycleStart} days from cycle start: ${publishAt}`);
                 }
 
                 // 8. Add to videoQueue
-                const platform = activeChannel.platform || 'youtube';
-                console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
+                const platform = capturedActiveChannel.platform || 'youtube';
+                console.log(`[Automation] Queuing for ${capturedActiveChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
 
                 jobStatus[sessionId] = { status: 'queued', message: 'Automated video prepared.' };
                 videoQueue.push({
@@ -1635,12 +1641,12 @@ router.post('/start-automation', async (req, res) => {
                     tags: videoTags,
                     visibility,
                     publishAt,
-                    channelId: activeChannel.channelId,
+                    channelId: capturedActiveChannel.channelId,
                     platform,
                     plan: 'free',
                     username,
-                    deleteChannelOnSuccess: activeDeleteOnSuccess,
-                    channelMeta: activeChannel,
+                    deleteChannelOnSuccess: capturedActiveDeleteOnSuccess,
+                    channelMeta: capturedActiveChannel,
                     cycleStartDateToStore: cycleStartDateToStore // Pass to queue for storage
                 });
 
