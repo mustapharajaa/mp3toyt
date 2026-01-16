@@ -1077,6 +1077,10 @@ async function processVideoQueue() {
         }
 
         const creationStartTime = Date.now();
+
+        // Yield event loop before CPU-intensive operation to allow pending HTTP requests to be processed
+        await new Promise(resolve => setImmediate(resolve));
+
         await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
         const creationTime = Math.round((Date.now() - creationStartTime) / 1000);
 
@@ -1492,44 +1496,42 @@ router.post('/start-automation', async (req, res) => {
             releaseAutomationLock();
         }
 
-        // 3. Setup Session
+        // 4. Setup Session Directory
         const sessionId = `auto_${uuidv4().substring(0, 8)}`;
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
 
-        // 4. Download Thumbnail with Fallback
-        let imagePath = path.join(sessionDir, 'image.jpg');
-        let thumbnailSuccess = false;
-
-        if (thumbUrl) {
-            console.log(`[Automation] Downloading thumbnail: ${thumbUrl}`);
-            try {
-                await downloadImage(thumbUrl, imagePath, username, sessionId);
-                if (await fs.pathExists(imagePath)) {
-                    thumbnailSuccess = true;
-                    console.log(`[Automation] Thumbnail downloaded: ${imagePath}`);
-                }
-            } catch (err) {
-                console.warn(`[Automation] Thumbnail download failed: ${err.message}. Using fallback.`);
-            }
-        }
-
-        if (!thumbnailSuccess) {
-            console.log(`[Automation] No thumbnail provided or download failed. Picking fallback...`);
-            const fallbackPath = await getRandomFallbackThumbnail();
-            if (fallbackPath) {
-                await fs.copy(fallbackPath, imagePath);
-                console.log(`[Automation] Using fallback thumbnail: ${fallbackPath}`);
-            } else {
-                console.error(`[Automation] CRITICAL: No fallback thumbnails found in ${FALLBACK_THUMBNAILS_DIR}`);
-                // If everything fails, we still need AN image to prevent FFmpeg crash
-                // We'll try to find any image in the logos directory or just let it fail later
-            }
-        }
-
-        // 5. Start background processing (Don't block response)
+        // 5. Start background processing immediately (Don't block response)
         (async () => {
             try {
+                // Download Thumbnail with Fallback (moved inside async to not block response)
+                let imagePath = path.join(sessionDir, 'image.jpg');
+                let thumbnailSuccess = false;
+
+                if (thumbUrl) {
+                    console.log(`[Automation] Downloading thumbnail: ${thumbUrl}`);
+                    try {
+                        await downloadImage(thumbUrl, imagePath, username, sessionId);
+                        if (await fs.pathExists(imagePath)) {
+                            thumbnailSuccess = true;
+                            console.log(`[Automation] Thumbnail downloaded: ${imagePath}`);
+                        }
+                    } catch (err) {
+                        console.warn(`[Automation] Thumbnail download failed: ${err.message}. Using fallback.`);
+                    }
+                }
+
+                if (!thumbnailSuccess) {
+                    console.log(`[Automation] No thumbnail provided or download failed. Picking fallback...`);
+                    const fallbackPath = await getRandomFallbackThumbnail();
+                    if (fallbackPath) {
+                        await fs.copy(fallbackPath, imagePath);
+                        console.log(`[Automation] Using fallback thumbnail: ${fallbackPath}`);
+                    } else {
+                        console.error(`[Automation] CRITICAL: No fallback thumbnails found in ${FALLBACK_THUMBNAILS_DIR}`);
+                    }
+                }
+
                 const downloadedFiles = [];
                 let videoTitle = '';
                 let videoDescription = '';
