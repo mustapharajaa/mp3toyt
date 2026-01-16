@@ -1395,6 +1395,7 @@ router.post('/start-automation', async (req, res) => {
         let activeDeleteOnSuccess;
         let activeUserCount;
         let allChannels = [];
+        let cycleStartDate = null; // Declare outside try block for scope
 
         try {
             if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
@@ -1410,7 +1411,7 @@ router.post('/start-automation', async (req, res) => {
 
             // Get cycle start date for this channel (if exists)
             const cycleStartKey = `${username}_cycle_start`;
-            const cycleStartDate = stats[cycleStartKey] ? new Date(stats[cycleStartKey]) : null;
+            cycleStartDate = stats[cycleStartKey] ? new Date(stats[cycleStartKey]) : null;
             const pendingCount = automationPendingCounters[username] || 0;
             const effectiveCount = savedCount + pendingCount;
             const channelIndex = Math.floor(effectiveCount / 6);
