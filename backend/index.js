@@ -1542,42 +1542,47 @@ router.post('/start-automation', async (req, res) => {
                     finalAudioPath = await concatenateAudioFiles(sessionDir);
                     console.log(`[Automation] Merging complete: ${finalAudioPath}`);
                 }
-                // 7. Determine Scheduling (6-video cycle based on userCount before increment)
+                // 7. Determine Scheduling (6-video cycle, each video 2 days apart)
                 const cycleIndex = activeUserCount % 6;
                 let visibility = 'public';
                 let publishAt = null;
 
                 console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
-                if (cycleIndex > 0) {
-                    visibility = 'private'; // Scheduled videos must be private first
-                    const daysOffset = cycleIndex * 2;
-                    const publishDate = new Date();
-                    publishDate.setDate(publishDate.getDate() + daysOffset);
+                // Calculate base date for the entire cycle
+                let baseDate = new Date();
 
-                    // Randomize hour (9 AM to 9 PM) and minutes
-                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
-                    const randomMin = Math.floor(Math.random() * 60);
-                    publishDate.setHours(randomHour, randomMin, 0, 0);
-
-                    publishAt = publishDate.toISOString();
-                    console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from now: ${publishAt}`);
-                } else {
+                // First video: random 0-2 days from now
+                if (cycleIndex === 0) {
                     const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                    baseDate.setDate(baseDate.getDate() + randomDays);
+
                     if (randomDays === 0) {
                         console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
                     } else {
                         visibility = 'private';
-                        const publishDate = new Date();
-                        publishDate.setDate(publishDate.getDate() + randomDays);
-
                         const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
                         const randomMin = Math.floor(Math.random() * 60);
-                        publishDate.setHours(randomHour, randomMin, 0, 0);
-
-                        publishAt = publishDate.toISOString();
-                        console.log(`[Automation] [Mode: RANDOM_SCHEDULE] First video scheduled for ${randomDays} days from now: ${publishAt}`);
+                        baseDate.setHours(randomHour, randomMin, 0, 0);
+                        publishAt = baseDate.toISOString();
+                        console.log(`[Automation] [Mode: FIRST_SCHEDULED] First video scheduled for ${randomDays} days from now: ${publishAt}`);
                     }
+                } else {
+                    // Videos 2-6: Each is 2 days after the previous video
+                    // Total offset = cycleIndex * 2 days from the first video's date
+                    visibility = 'private';
+
+                    // Get the base offset from stored first video date or calculate from cycle
+                    const daysFromToday = cycleIndex * 2; // 2, 4, 6, 8, 10 days from TODAY
+                    baseDate.setDate(baseDate.getDate() + daysFromToday);
+
+                    // Randomize hour (9 AM to 9 PM) and minutes
+                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                    const randomMin = Math.floor(Math.random() * 60);
+                    baseDate.setHours(randomHour, randomMin, 0, 0);
+
+                    publishAt = baseDate.toISOString();
+                    console.log(`[Automation] [Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled for ${daysFromToday} days from now: ${publishAt}`);
                 }
 
                 // 8. Add to videoQueue
