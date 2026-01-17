@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
-import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js';
+// import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js'; // REMOVED - using bundle-api
 import * as bundleApi from './bundle-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
@@ -339,6 +339,7 @@ async function getYoutubeMetadata(link) {
         '--print', '%(description)s',
         '--print', '%(tags)j',
         '--js-runtimes', 'node',
+        '--remote-components', 'ejs:github',
         link
     ];
 
@@ -424,7 +425,7 @@ async function downloadImage(url, imagePath, username, sessionId) {
         } else {
             console.log(`[Thumbnail] Fast Path Failed, falling back to yt-dlp...`);
             targetUrl = await new Promise((resolve, reject) => {
-                const args = ['--get-thumbnail', url, '--js-runtimes', 'node'];
+                const args = ['--get-thumbnail', url, '--js-runtimes', 'node', '--remote-components', 'ejs:github'];
                 if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
                     args.push('--cookies', YOUTUBE_COOKIES_PATH);
                 }
@@ -479,6 +480,7 @@ async function downloadAudio(link, audioPath, format = 'best', onProgress = null
         '--audio-format', format,
         '--output', audioPath,
         '--js-runtimes', 'node', // Added for YouTube challenge solving (EJS)
+        '--remote-components', 'ejs:github',
         link
     ];
 
@@ -1077,10 +1079,6 @@ async function processVideoQueue() {
         }
 
         const creationStartTime = Date.now();
-
-        // Yield event loop before CPU-intensive operation to allow pending HTTP requests to be processed
-        await new Promise(resolve => setImmediate(resolve));
-
         await createVideoWithFfmpeg(sessionId, audioPath, imagePath, outputVideoPath, overlay, plan);
         const creationTime = Math.round((Date.now() - creationStartTime) / 1000);
 
@@ -1181,14 +1179,6 @@ async function processVideoQueue() {
                 stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
 
                 const currentCount = (stats[username] || 0) + 1;
-
-                // Store cycle start date if provided (first video of cycle)
-                if (job.cycleStartDateToStore) {
-                    const cycleStartKey = `${username}_cycle_start`;
-                    stats[cycleStartKey] = job.cycleStartDateToStore;
-                    console.log(`[Queue] Stored cycle start date for ${username}: ${job.cycleStartDateToStore}`);
-                }
-
                 if (currentCount >= 6) {
                     console.log(`[Queue] 🏆 6-video cycle complete for ${username}. Marking ${channelId} as EXHAUSTED.`);
                     const channelMeta = job.channelMeta || (await mp3toytChannels.getChannel(channelId, username));
@@ -1196,11 +1186,6 @@ async function processVideoQueue() {
                         await mp3toytChannels.saveChannel({ ...channelMeta, status: 'exhausted' }, username);
                     }
                     stats[username] = 0;
-
-                    // Clear cycle start date when cycle completes
-                    const cycleStartKey = `${username}_cycle_start`;
-                    delete stats[cycleStartKey];
-                    console.log(`[Queue] Cleared cycle start date for ${username}`);
                 } else {
                     stats[username] = currentCount;
                 }
@@ -1239,12 +1224,6 @@ async function processVideoQueue() {
                 try {
                     const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
                     stats[username] = 0;
-
-                    // Clear cycle start date when channel is deleted due to errors
-                    const cycleStartKey = `${username}_cycle_start`;
-                    delete stats[cycleStartKey];
-                    console.log(`[Queue] Cleared cycle start date for ${username} (channel deleted due to error)`);
-
                     await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
                     console.log(`[Queue] Reset automation counter for ${username} to 0.`);
                 } finally {
@@ -1395,7 +1374,6 @@ router.post('/start-automation', async (req, res) => {
         let activeDeleteOnSuccess;
         let activeUserCount;
         let allChannels = [];
-        let cycleStartDate = null; // Declare outside try block for scope
 
         try {
             if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
@@ -1408,78 +1386,29 @@ router.post('/start-automation', async (req, res) => {
             }
 
             const savedCount = stats[username] || 0;
-
-            // Get cycle start date for this channel (if exists)
-            const cycleStartKey = `${username}_cycle_start`;
-            cycleStartDate = stats[cycleStartKey] ? new Date(stats[cycleStartKey]) : null;
             const pendingCount = automationPendingCounters[username] || 0;
             const effectiveCount = savedCount + pendingCount;
             const channelIndex = Math.floor(effectiveCount / 6);
 
-
             // CAPACITY CHECK: If no channels OR we've assigned all available slots (6 per channel)
             if (allChannels.length === 0 || channelIndex >= allChannels.length) {
                 console.log(`[Automation] No capacity for ${username} (${allChannels.length} channels, ${effectiveCount} assigned). Saving to memory...`);
-
-                try {
-                    let pending = [];
-                    if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
-                        console.log(`[Automation] Reading existing pending automation file...`);
-                        pending = await fs.readJson(PENDING_AUTOMATION_PATH);
-                        console.log(`[Automation] Found ${pending.length} existing pending items`);
-
-                        // PREVENT MEMORY BLOAT: Limit to max 20 pending items
-                        if (pending.length >= 20) {
-                            console.log(`[Automation] Pending limit reached. Keeping only last 19 items.`);
-                            pending = pending.slice(-19);
-                        }
-
-                        // CLEANUP: Remove items older than 24 hours
-                        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-                        const initialLength = pending.length;
-                        pending = pending.filter(item => {
-                            const itemTime = new Date(item.timestamp);
-                            return itemTime > oneDayAgo;
-                        });
-                        if (pending.length < initialLength) {
-                            console.log(`[Automation] Removed ${initialLength - pending.length} old items`);
-                        }
-                    }
-
-                    const newPendingItem = { links, thumbUrl, username, timestamp: new Date().toISOString() };
-                    pending.push(newPendingItem);
-
-                    const responseMessage = allChannels.length === 0
-                        ? 'No active channels found. Saved to memory.'
-                        : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.';
-
-                    // SEND RESPONSE IMMEDIATELY to prevent UI freeze
-                    releaseAutomationLock();
-                    console.log(`[Automation] Sending immediate response to prevent slowness`);
-                    res.status(200).json({
-                        success: true,
-                        isPending: true,
-                        message: responseMessage,
-                        pendingCount: pending.length
-                    });
-
-                    // Write file in background (non-blocking)
-                    console.log(`[Automation] Writing ${pending.length} items (background)...`);
-                    fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 })
-                        .then(() => console.log(`[Automation] Successfully saved`))
-                        .catch(err => console.error(`[Automation] Save error:`, err.message));
-
-                    return;
-                } catch (pendingError) {
-                    console.error(`[Automation CRITICAL ERROR] Failed to save pending automation:`, pendingError);
-                    releaseAutomationLock();
-                    return res.status(500).json({
-                        success: false,
-                        error: 'Failed to save automation request. Please try again.'
-                    });
+                let pending = [];
+                if (await fs.pathExists(PENDING_AUTOMATION_PATH)) {
+                    pending = await fs.readJson(PENDING_AUTOMATION_PATH);
                 }
-            }
+                pending.push({ links, thumbUrl, username, timestamp: new Date().toISOString() });
+                await fs.writeJson(PENDING_AUTOMATION_PATH, pending, { spaces: 4 });
 
+                releaseAutomationLock();
+                return res.json({
+                    success: true,
+                    isPending: true,
+                    message: allChannels.length === 0
+                        ? 'No active channels found. Saved to memory.'
+                        : 'All channel slots are full. Saved to memory and will process once a slot opens or a new channel is connected.'
+                });
+            }
 
             activeChannel = allChannels[channelIndex];
 
@@ -1497,48 +1426,44 @@ router.post('/start-automation', async (req, res) => {
             releaseAutomationLock();
         }
 
-        // 4. Setup Session Directory
+        // 3. Setup Session
         const sessionId = `auto_${uuidv4().substring(0, 8)}`;
         const sessionDir = path.join(TEMP_BASE_DIR, username, sessionId);
         await fs.ensureDir(sessionDir);
 
-        // Capture cycleStartDate for use in background async
-        const capturedCycleStartDate = cycleStartDate;
-        const capturedActiveUserCount = activeUserCount;
-        const capturedActiveChannel = activeChannel;
-        const capturedActiveDeleteOnSuccess = activeDeleteOnSuccess;
+        // 4. Download Thumbnail with Fallback
+        let imagePath = path.join(sessionDir, 'image.jpg');
+        let thumbnailSuccess = false;
 
-        // 5. Start background processing immediately (Don't block response)
+        if (thumbUrl) {
+            console.log(`[Automation] Downloading thumbnail: ${thumbUrl}`);
+            try {
+                await downloadImage(thumbUrl, imagePath, username, sessionId);
+                if (await fs.pathExists(imagePath)) {
+                    thumbnailSuccess = true;
+                    console.log(`[Automation] Thumbnail downloaded: ${imagePath}`);
+                }
+            } catch (err) {
+                console.warn(`[Automation] Thumbnail download failed: ${err.message}. Using fallback.`);
+            }
+        }
+
+        if (!thumbnailSuccess) {
+            console.log(`[Automation] No thumbnail provided or download failed. Picking fallback...`);
+            const fallbackPath = await getRandomFallbackThumbnail();
+            if (fallbackPath) {
+                await fs.copy(fallbackPath, imagePath);
+                console.log(`[Automation] Using fallback thumbnail: ${fallbackPath}`);
+            } else {
+                console.error(`[Automation] CRITICAL: No fallback thumbnails found in ${FALLBACK_THUMBNAILS_DIR}`);
+                // If everything fails, we still need AN image to prevent FFmpeg crash
+                // We'll try to find any image in the logos directory or just let it fail later
+            }
+        }
+
+        // 5. Start background processing (Don't block response)
         (async () => {
             try {
-                // Download Thumbnail with Fallback (moved inside async to not block response)
-                let imagePath = path.join(sessionDir, 'image.jpg');
-                let thumbnailSuccess = false;
-
-                if (thumbUrl) {
-                    console.log(`[Automation] Downloading thumbnail: ${thumbUrl}`);
-                    try {
-                        await downloadImage(thumbUrl, imagePath, username, sessionId);
-                        if (await fs.pathExists(imagePath)) {
-                            thumbnailSuccess = true;
-                            console.log(`[Automation] Thumbnail downloaded: ${imagePath}`);
-                        }
-                    } catch (err) {
-                        console.warn(`[Automation] Thumbnail download failed: ${err.message}. Using fallback.`);
-                    }
-                }
-
-                if (!thumbnailSuccess) {
-                    console.log(`[Automation] No thumbnail provided or download failed. Picking fallback...`);
-                    const fallbackPath = await getRandomFallbackThumbnail();
-                    if (fallbackPath) {
-                        await fs.copy(fallbackPath, imagePath);
-                        console.log(`[Automation] Using fallback thumbnail: ${fallbackPath}`);
-                    } else {
-                        console.error(`[Automation] CRITICAL: No fallback thumbnails found in ${FALLBACK_THUMBNAILS_DIR}`);
-                    }
-                }
-
                 const downloadedFiles = [];
                 let videoTitle = '';
                 let videoDescription = '';
@@ -1574,63 +1499,47 @@ router.post('/start-automation', async (req, res) => {
                     finalAudioPath = await concatenateAudioFiles(sessionDir);
                     console.log(`[Automation] Merging complete: ${finalAudioPath}`);
                 }
-                // 7. Determine Scheduling (6-video cycle, each video 2 days apart)
-                const cycleIndex = capturedActiveUserCount % 6;
+                // 7. Determine Scheduling (6-video cycle based on userCount before increment)
+                const cycleIndex = activeUserCount % 6;
                 let visibility = 'public';
                 let publishAt = null;
-                let cycleStartDateToStore = null;
 
-                console.log(`[Automation] [User: ${username}] Scheduling for count: ${capturedActiveUserCount} (Cycle Index: ${cycleIndex}/5)`);
+                console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
-                // First video: Establish cycle start date
-                if (cycleIndex === 0) {
-                    const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
-                    const baseDate = new Date();
-                    baseDate.setDate(baseDate.getDate() + randomDays);
-
-                    // Store this as the cycle start date
-                    cycleStartDateToStore = baseDate.toISOString();
-
-                    if (randomDays === 0) {
-                        console.log(`[Automation] [Mode: PUBLIC] First video uploading immediately. Cycle starts NOW.`);
-                    } else {
-                        visibility = 'private';
-                        const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
-                        const randomMin = Math.floor(Math.random() * 60);
-                        baseDate.setHours(randomHour, randomMin, 0, 0);
-                        publishAt = baseDate.toISOString();
-                        cycleStartDateToStore = publishAt;
-                        console.log(`[Automation] [Mode: FIRST_SCHEDULED] Video 1/6 scheduled for ${randomDays} days. Cycle starts: ${publishAt}`);
-                    }
-                } else {
-                    // Videos 2-6: Calculate from stored cycle start date
-                    visibility = 'private';
-
-                    // Use the stored cycle start date as base
-                    const baseDate = capturedCycleStartDate ? new Date(capturedCycleStartDate) : new Date();
-
-                    if (!capturedCycleStartDate) {
-                        console.warn(`[Automation] WARNING: No cycle start date found for ${username}. Using today as fallback.`);
-                    } else {
-                        console.log(`[Automation] Using stored cycle start date: ${capturedCycleStartDate}`);
-                    }
-
-                    // Add cycleIndex * 2 days from cycle start
-                    const daysFromCycleStart = cycleIndex * 2; // 2, 4, 6, 8, 10 days
-                    baseDate.setDate(baseDate.getDate() + daysFromCycleStart);
+                if (cycleIndex > 0) {
+                    visibility = 'private'; // Scheduled videos must be private first
+                    const daysOffset = cycleIndex * 2;
+                    const publishDate = new Date();
+                    publishDate.setDate(publishDate.getDate() + daysOffset);
 
                     // Randomize hour (9 AM to 9 PM) and minutes
                     const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
                     const randomMin = Math.floor(Math.random() * 60);
-                    baseDate.setHours(randomHour, randomMin, 0, 0);
+                    publishDate.setHours(randomHour, randomMin, 0, 0);
 
-                    publishAt = baseDate.toISOString();
-                    console.log(`[Automation] [Mode: SEQUENTIAL] Video ${cycleIndex + 1}/6 scheduled ${daysFromCycleStart} days from cycle start: ${publishAt}`);
+                    publishAt = publishDate.toISOString();
+                    console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from now: ${publishAt}`);
+                } else {
+                    const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                    if (randomDays === 0) {
+                        console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
+                    } else {
+                        visibility = 'private';
+                        const publishDate = new Date();
+                        publishDate.setDate(publishDate.getDate() + randomDays);
+
+                        const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                        const randomMin = Math.floor(Math.random() * 60);
+                        publishDate.setHours(randomHour, randomMin, 0, 0);
+
+                        publishAt = publishDate.toISOString();
+                        console.log(`[Automation] [Mode: RANDOM_SCHEDULE] First video scheduled for ${randomDays} days from now: ${publishAt}`);
+                    }
                 }
 
                 // 8. Add to videoQueue
-                const platform = capturedActiveChannel.platform || 'youtube';
-                console.log(`[Automation] Queuing for ${capturedActiveChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
+                const platform = activeChannel.platform || 'youtube';
+                console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
 
                 jobStatus[sessionId] = { status: 'queued', message: 'Automated video prepared.' };
                 videoQueue.push({
@@ -1642,13 +1551,12 @@ router.post('/start-automation', async (req, res) => {
                     tags: videoTags,
                     visibility,
                     publishAt,
-                    channelId: capturedActiveChannel.channelId,
+                    channelId: activeChannel.channelId,
                     platform,
                     plan: 'free',
                     username,
-                    deleteChannelOnSuccess: capturedActiveDeleteOnSuccess,
-                    channelMeta: capturedActiveChannel,
-                    cycleStartDateToStore: cycleStartDateToStore // Pass to queue for storage
+                    deleteChannelOnSuccess: activeDeleteOnSuccess,
+                    channelMeta: activeChannel
                 });
 
                 console.log(`[Automation] Background tasks queued. Lifetime Total: ${stats.total_lifetime_videos}`);
@@ -1851,20 +1759,8 @@ router.get('/auth/mp3toyt', async (req, res) => {
 
 router.get('/auth/facebook', async (req, res) => {
     try {
-        const username = req.session && req.session.username ? req.session.username : 'guest';
-        const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
-
-        // ADMIN OVERRIDE: Direct Facebook Auth for 'erraja'
-        if (username === 'erraja') {
-            console.log(`[Auth] Initiating Direct Facebook Auth for admin: ${username}`);
-            const directUrl = await getFacebookAuthUrl(redirectUri);
-            if (!directUrl) {
-                return res.status(500).send('Could not generate Facebook URL. Check facebook_credentials.json');
-            }
-            return res.redirect(directUrl);
-        }
-
         // We use the same callback URL, though strictly speaking Bundle might just need *any* URL to redirect back to.
+        const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
         const connectUrl = await bundleApi.getFacebookConnectUrl(redirectUri);
 
         if (!connectUrl) {
@@ -1951,65 +1847,11 @@ async function claimBundleChannels(username, targetInstanceId = null) {
 router.get('/auth/facebook/callback', async (req, res) => {
     // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
     const username = req.session && req.session.username ? req.session.username : 'guest';
-    const { inst, code } = req.query;
+    const { inst } = req.query;
+
+    // Attempt to claim any new channels (Targeted if inst provided)
     let newChannelId = '';
-
-    // --- CASE A: Direct Facebook Auth (Admin 'erraja') ---
-    if (code && username === 'erraja') {
-        try {
-            console.log(`[Auth] Code received for direct Facebook auth (Admin: ${username})`);
-            const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
-
-            // 1. Exchange code for user access token
-            const tokenData = await getFacebookTokenFromCode(code, redirectUri);
-            const userAccessToken = tokenData.access_token;
-
-            // 2. Get User Info and Pages
-            const userInfo = await getFacebookUserInfo(userAccessToken);
-
-            // 3. Save User Token (optional, mostly for specific user actions)
-            await saveFacebookToken(userInfo.user.id, userInfo.user.name, {
-                access_token: userAccessToken,
-                expires_in: tokenData.expires_in
-            }, 'user');
-
-            // 4. Process Pages
-            if (userInfo.pages && userInfo.pages.length > 0) {
-                console.log(`[Auth] Found ${userInfo.pages.length} pages for admin.`);
-
-                for (const page of userInfo.pages) {
-                    // Save Page Token
-                    await saveFacebookToken(page.id, page.name, {
-                        access_token: page.access_token
-                    }, 'page');
-
-                    // Save as Channel (in admin_channels.json)
-                    await mp3toytChannels.saveChannel({
-                        channelId: page.id,
-                        channelTitle: page.name,
-                        thumbnail: `https://graph.facebook.com/${page.id}/picture?type=normal`, // Simple graph image
-                        platform: 'facebook',
-                        socialAccountId: userInfo.user.id, // Linked to FB User ID
-                        bundleInstanceId: undefined, // Explicitly NOT bundle
-                        status: 'connected',
-                        authType: 'direct' // Clean marker
-                    }, username);
-
-                    // Set the last one as "new" for the UI popup
-                    newChannelId = page.id;
-                }
-            } else {
-                console.warn('[Auth] No pages found for this Facebook user.');
-            }
-
-        } catch (err) {
-            console.error('[Auth] Direct Facebook Auth Failed:', err.response ? err.response.data : err.message);
-            return res.status(500).send('Direct Facebook Auth Failed: ' + err.message);
-        }
-    }
-    // --- CASE B: Bundle.social Auth (Regular Users) ---
-    else if (username !== 'guest') {
-        // Attempt to claim any new channels (Targeted if inst provided)
+    if (username !== 'guest') {
         const claimed = await claimBundleChannels(username, inst);
         if (claimed.length > 0) {
             newChannelId = claimed[0];

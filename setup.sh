@@ -34,7 +34,7 @@ fi
 
 # Install or Update yt-dlp
 echo "Installing/Updating yt-dlp..."
-sudo python3 -m pip install -U yt-dlp --break-system-packages
+sudo python3 -m pip install -U "yt-dlp[default]" --break-system-packages
 
 # Detect Paths
 FFMPEG_LOC=$(which ffmpeg)
