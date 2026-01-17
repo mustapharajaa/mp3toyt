@@ -20,7 +20,7 @@ sudo apt-get install -y python3 python3-pip
 # Install Node.js
 if ! command -v node &> /dev/null; then
     echo "Installing Node.js..."
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt-get install -y nodejs
 else
     echo "Node.js is already installed."
@@ -42,7 +42,7 @@ fi
 
 # Install or Update yt-dlp
 echo "Installing/Updating yt-dlp..."
-sudo python3 -m pip install -U yt-dlp
+sudo python3 -m pip install -U yt-dlp --break-system-packages
 
 # Detect Paths
 FFMPEG_LOC=$(which ffmpeg)
