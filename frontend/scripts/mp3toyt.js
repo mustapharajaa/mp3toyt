@@ -961,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fullUrl = window.location.origin + status.videoUrl;
                     errorHtml = `<div class="manual-fb-fallback">
                         <p style="color: #ef4444; margin-bottom: 8px;">Automated upload is restricted for profiles.</p>
-                        <button onclick="shareVideoToFacebook('${fullUrl}')" class="fb-share-btn">
+                        <button type="button" onclick="shareVideoToFacebook('${fullUrl}')" class="fb-share-btn">
                             <i class="fab fa-facebook"></i> Share to Profile
                         </button>
                         <p style="font-size: 11px; margin-top: 5px; opacity: 0.7;">This uses the Facebook Share Dialog (English/Manual)</p>
