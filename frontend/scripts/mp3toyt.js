@@ -959,12 +959,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 let errorHtml = `<strong>Upload Failed</strong>`;
                 if (status.isManualFallback && status.videoUrl) {
                     const fullUrl = window.location.origin + status.videoUrl;
+                    const fallbackSharer = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`;
+
                     errorHtml = `<div class="manual-fb-fallback">
                         <p style="color: #ef4444; margin-bottom: 8px;">Automated upload is restricted for profiles.</p>
-                        <button type="button" class="fb-share-btn" data-video-url="${fullUrl}">
-                            <i class="fab fa-facebook"></i> Share to Profile
-                        </button>
-                        <p style="font-size: 11px; margin-top: 5px; opacity: 0.7;">This uses the Facebook Share Dialog (English/Manual)</p>
+                        <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+                            <button type="button" class="fb-share-btn" data-video-url="${fullUrl}">
+                                <i class="fab fa-facebook"></i> Share to Profile (SDK)
+                            </button>
+                            <a href="${fallbackSharer}" target="_blank" class="fb-share-btn" style="background: #4267B2; display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 250px; text-decoration: none;">
+                                <i class="fas fa-external-link-alt" style="margin-right: 8px;"></i> Use Backup Share Link
+                            </a>
+                        </div>
+                        <p style="font-size: 11px; margin-top: 8px; opacity: 0.7;">Try SDK first. Use Backup if the popup is stuck.</p>
                     </div>`;
 
                     // Always disable create button in fallback mode to prevent accidental double-clicks
@@ -998,19 +1005,23 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[FB Share] Triggering dialog for:', videoUrl);
         if (!window.FB) {
             console.error('[FB Share] FB object not found on window');
-            showNotification('Facebook SDK not loaded. Check your internet or ad-blocker.', 'error');
+            showNotification('SDK not loaded. Opening backup sharer...', 'info');
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(videoUrl)}`, '_blank');
             return;
         }
 
-        // Ensure SDK is initialized
-        if (!window.FB._initialized) {
-            console.warn('[FB Share] SDK not initialized yet, attempting immediate init if possible');
-        }
+        // If the App is in Dev mode or domain not whitelisted, FB.ui can hang.
+        // We'll set a local timeout to warn the user if it takes too long.
+        const shareTimeout = setTimeout(() => {
+            console.warn('[FB Share] Dialog taking too long? Suggesting backup...');
+            showNotification('Loading taking a while? Try the "Backup Share Link" below.', 'info');
+        }, 8000);
 
         window.FB.ui({
             method: 'share',
             href: videoUrl,
         }, function (response) {
+            clearTimeout(shareTimeout);
             console.log('[FB Share] Dialog response:', response);
             if (response && !response.error_message) {
                 showNotification('Successfully shared to Facebook!');
@@ -1018,7 +1029,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('[FB Share] Error message:', response.error_message);
                 showNotification(`FB Error: ${response.error_message}`, 'error');
             } else {
-                console.warn('[FB Share] User may have cancelled.');
+                console.warn('[FB Share] User may have cancelled or encountered a hidden error.');
             }
         });
     };
