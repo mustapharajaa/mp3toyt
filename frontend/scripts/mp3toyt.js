@@ -982,17 +982,28 @@ document.addEventListener('DOMContentLoaded', () => {
     window.shareVideoToFacebook = function (videoUrl) {
         console.log('[FB Share] Triggering dialog for:', videoUrl);
         if (!window.FB) {
-            showNotification('Facebook SDK not loaded.', 'error');
+            console.error('[FB Share] FB object not found on window');
+            showNotification('Facebook SDK not loaded. Check your internet or ad-blocker.', 'error');
             return;
         }
+
+        // Ensure SDK is initialized
+        if (!window.FB._initialized) {
+            console.warn('[FB Share] SDK not initialized yet, attempting immediate init if possible');
+        }
+
         window.FB.ui({
             method: 'share',
             href: videoUrl,
         }, function (response) {
+            console.log('[FB Share] Dialog response:', response);
             if (response && !response.error_message) {
                 showNotification('Successfully shared to Facebook!');
+            } else if (response && response.error_message) {
+                console.error('[FB Share] Error message:', response.error_message);
+                showNotification(`FB Error: ${response.error_message}`, 'error');
             } else {
-                console.warn('[FB Share] User cancelled or error:', response);
+                console.warn('[FB Share] User may have cancelled.');
             }
         });
     };
@@ -1560,14 +1571,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.appId) {
-                        window.FB.init({
-                            appId: data.appId,
-                            status: true,
-                            cookie: true,
-                            xfbml: true,
-                            version: 'v20.0'
-                        });
-                        console.log('[FB SDK] Initialized with App ID:', data.appId);
+                        const initFB = () => {
+                            window.FB.init({
+                                appId: data.appId,
+                                status: true,
+                                cookie: true,
+                                xfbml: true,
+                                version: 'v20.0'
+                            });
+                            window.FB._initialized = true;
+                            console.log('[FB SDK] Initialized with App ID:', data.appId);
+                        };
+
+                        if (window.FB) {
+                            initFB();
+                        } else {
+                            // If SDK isn't loaded yet, hook into the async init
+                            const oldAsyncInit = window.fbAsyncInit;
+                            window.fbAsyncInit = function () {
+                                if (typeof oldAsyncInit === 'function') oldAsyncInit();
+                                initFB();
+                            };
+                        }
+                    } else {
+                        console.warn('[FB SDK] No App ID available for initialization');
                     }
                 })
                 .catch(err => console.error('[FB SDK] Init error:', err));
