@@ -646,6 +646,8 @@
                         class="fab fa-facebook-messenger" style="color: #60a5fa;"></i> Direct FB Token</button>
                 <button type="button" id="manage-fb-creds-btn"><i class="fab fa-facebook-f" style="color: #1877f2;"></i>
                     Facebook Credentials</button>
+                <button type="button" id="manage-fb-cookies-btn"><i class="fas fa-cookie" style="color: #f59e0b;"></i>
+                    Facebook Cookies</button>
                 <button type="button" id="manage-credentials-btn"><i class="fas fa-file-code"
                         style="color: #6366f1;"></i>
                     YouTube Credentials</button>
@@ -1200,6 +1202,31 @@
                     style="background: #e4e6eb; color: #050505;">Cancel</button>
                 <button type="button" id="save-fb-direct-btn" class="connect-btn"
                     style="background: #1877f2; color: white;">Save Token</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Facebook Cookies Modal (Puppeteer) -->
+    <div id="fbCookiesModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px; border-radius: 16px;">
+            <span class="close-modal" id="close-fb-cookies-modal">&times;</span>
+            <h2 style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px; color: #f59e0b;">
+                <i class="fas fa-cookie-bite"></i> Facebook Automation Cookies
+            </h2>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Paste your Facebook session cookies in JSON format (array of objects).
+                <br><small>These are used by Puppeteer to bypass login.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="fb-cookies-editor" spellcheck="false"
+                    placeholder='[ { "name": "...", "value": "..." }, ... ]'
+                    style="min-height: 250px; font-family: monospace; background: #fafafa; color: #333; border: 1px solid #ddd; padding: 12px; border-radius: 8px;"></textarea>
+            </div>
+            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" id="cancel-fb-cookies-btn" class="connect-btn"
+                    style="background: #e4e6eb; color: #050505;">Cancel</button>
+                <button type="button" id="save-fb-cookies-btn" class="connect-btn"
+                    style="background: #f59e0b; color: white;">Save Cookies</button>
             </div>
         </div>
     </div>

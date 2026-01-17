@@ -106,70 +106,27 @@ export async function saveFacebookToken(accountId, accountTitle, tokenData, type
 }
 
 /**
- * Uploads video to Facebook directly using Graph API
+ * Uploads video to Facebook (simplistic version, for resumable see Meta docs)
  */
-export async function uploadVideoToFacebook(targetId, accessToken, videoPath, metadata, onProgress) {
-    try {
-        let finalTargetId = targetId;
+export async function uploadVideoToFacebook(accountId, accessToken, videoPath, metadata, onProgress) {
+    const fileSize = fs.statSync(videoPath).size;
+    const form = new FormData();
+    form.append('access_token', accessToken);
+    form.append('source', fs.createReadStream(videoPath));
+    form.append('title', metadata.title);
+    form.append('description', metadata.description);
 
-        // If target is 'me', let's resolve the actual ID first (more robust)
-        if (targetId === 'me') {
-            try {
-                const meRes = await axios.get(`${FB_GRAPH_URL}/me?fields=id&access_token=${accessToken}`);
-                if (meRes.data && meRes.data.id) {
-                    finalTargetId = meRes.data.id;
-                    console.log(`[Facebook] Resolved 'me' to User ID: ${finalTargetId}`);
-                }
-            } catch (e) {
-                console.warn('[Facebook] Failed to resolve User ID, falling back to "me"', e.message);
+    const response = await axios.post(`${FB_GRAPH_VIDEO_URL}/${accountId}/videos`, form, {
+        headers: {
+            ...form.getHeaders()
+        },
+        onUploadProgress: (progressEvent) => {
+            if (onProgress) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                onProgress(percentCompleted);
             }
         }
+    });
 
-        const stats = await fs.stat(videoPath);
-        const fileSize = stats.size;
-        const videoBuffer = await fs.readFile(videoPath);
-        const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
-
-        const form = new FormData();
-        form.append('access_token', accessToken);
-        form.append('source', videoBlob, path.basename(videoPath));
-        form.append('description', metadata.description || metadata.title || '');
-
-        if (metadata.title) {
-            form.append('title', metadata.title);
-        }
-
-        console.log(`[Facebook] Initiating direct upload to ${finalTargetId} (${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
-
-        const response = await axios.post(`${FB_GRAPH_VIDEO_URL}/${finalTargetId}/videos`, form, {
-            headers: {
-                'Content-Type': 'multipart/form-data'
-            },
-            onUploadProgress: (progressEvent) => {
-                if (onProgress && progressEvent.total) {
-                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                    onProgress(percentCompleted);
-                }
-            }
-        });
-
-        console.log(`[Facebook] Upload successful. ID: ${response.data.id}`);
-        return { success: true, data: response.data };
-    } catch (error) {
-        console.error('[Facebook] Direct upload failed:', error.response?.data || error.message);
-        const fbError = error.response?.data?.error;
-        let errorMessage = error.message;
-
-        if (fbError) {
-            errorMessage = `(#${fbError.code}) ${fbError.message}`;
-            if (fbError.code === 100 && targetId === 'me') {
-                errorMessage += " - Note: Posting to personal profiles is restricted by Facebook. Try using a Page instead.";
-            }
-        }
-
-        return {
-            success: false,
-            error: errorMessage
-        };
-    }
+    return { success: true, data: response.data };
 }

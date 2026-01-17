@@ -10,9 +10,10 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
-import { uploadVideoToFacebook, saveFacebookToken } from './facebook-api.js';
+// import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js'; // REMOVED - using bundle-api
 import * as bundleApi from './bundle-api.js';
 import * as mp3toytChannels from './channels.js';
+import { uploadVideoWithPuppeteer } from './facebook-puppeteer.js';
 import formidable from 'formidable';
 
 // --- Configuration & Validation ---
@@ -339,7 +340,6 @@ async function getYoutubeMetadata(link) {
         '--print', '%(description)s',
         '--print', '%(tags)j',
         '--js-runtimes', 'node',
-        '--remote-components', 'ejs:github',
         link
     ];
 
@@ -425,7 +425,7 @@ async function downloadImage(url, imagePath, username, sessionId) {
         } else {
             console.log(`[Thumbnail] Fast Path Failed, falling back to yt-dlp...`);
             targetUrl = await new Promise((resolve, reject) => {
-                const args = ['--get-thumbnail', url, '--js-runtimes', 'node', '--remote-components', 'ejs:github'];
+                const args = ['--get-thumbnail', url, '--js-runtimes', 'node'];
                 if (YOUTUBE_COOKIES_PATH && fs.existsSync(YOUTUBE_COOKIES_PATH)) {
                     args.push('--cookies', YOUTUBE_COOKIES_PATH);
                 }
@@ -480,7 +480,6 @@ async function downloadAudio(link, audioPath, format = 'best', onProgress = null
         '--audio-format', format,
         '--output', audioPath,
         '--js-runtimes', 'node', // Added for YouTube challenge solving (EJS)
-        '--remote-components', 'ejs:github',
         link
     ];
 
@@ -1129,27 +1128,25 @@ async function processVideoQueue() {
                 url: `https://bundle.social/dashboard`
             };
         } else if (platform === 'facebook' && username === 'erraja') {
-            // Direct Facebook Posting for Admin (erraja) - DISABLED PER USER REQUEST (using manual fallback instead)
-            /* 
-            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
-            const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
+            // Direct Facebook Posting for Admin (erraja) using Puppeteer
+            console.log(`[Queue] Using Puppeteer Automation for Facebook admin: erraja`);
+            if (jobStatus[sessionId]) jobStatus[sessionId].message = `Automating Facebook upload...`;
 
-            if (!adminDirect || !adminDirect.access_token) {
-                throw new Error('Direct Facebook Access Token not configured for admin.');
+            const postText = `${title}\n\n${description || ''}`;
+            const result = await uploadVideoWithPuppeteer(outputVideoPath, postText);
+
+            if (result.success) {
+                uploadResult = {
+                    success: true,
+                    data: { id: 'automated-post' },
+                    url: 'https://www.facebook.com'
+                };
+            } else {
+                uploadResult = {
+                    success: false,
+                    error: result.error || 'Puppeteer automation failed.'
+                };
             }
-
-            console.log(`[Queue] Using direct Facebook Graph API for admin: erraja`);
-            if (jobStatus[sessionId]) jobStatus[sessionId].message = `Directly uploading to Facebook...`;
-
-            const metadata = { title, description };
-            const fbTargetId = channelId === 'admin_direct' ? 'me' : channelId;
-
-            uploadResult = await uploadVideoToFacebook(fbTargetId, adminDirect.access_token, outputVideoPath, metadata, (percent) => {
-                if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to Facebook... ${percent}%`;
-            });
-            */
-            console.log(`[Queue] Facebook Graph API for admin is DISABLED. Using manual fallback.`);
-            uploadResult = { success: false, error: 'Manual fallback enabled.' };
         } else {
             // Direct YouTube API (Only for admin or specific claimed direct channels)
             console.log(`[Queue] Using direct YouTube API for user: ${username}`);
@@ -1167,25 +1164,9 @@ async function processVideoQueue() {
             });
         }
 
-        const localVideoUrl = `/uploads/${path.basename(outputVideoPath)}`;
+        if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
 
-        if (!uploadResult.success) {
-            // Special handling for admin direct FB upload failure
-            if (platform === 'facebook' && username === 'erraja') {
-                jobStatus[sessionId] = {
-                    status: 'failed',
-                    message: "Direct upload failed. You can still share manually.",
-                    error: uploadResult.error,
-                    videoUrl: localVideoUrl,
-                    isManualFallback: true,
-                    creationTime
-                };
-                return; // Stop here, but with a "recoverable" failure
-            }
-            throw new Error(uploadResult.error || 'Upload failed.');
-        }
-
-        // --- SUCCESS ---
+        // Final activity update upon successful upload
         if (isBundle) {
             await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
         }
@@ -1248,22 +1229,7 @@ async function processVideoQueue() {
 
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
-
-        // Special manual fallback for admin Facebook failure (even if creation fails)
-        if (platform === 'facebook' && username === 'erraja') {
-            const localVideoUrl = `/uploads/${path.basename(outputVideoPath)}`;
-            const videoExists = await fs.pathExists(outputVideoPath).catch(() => false);
-
-            jobStatus[sessionId] = {
-                status: 'failed',
-                message: `Creation/Upload failed: ${error.message}`,
-                isManualFallback: true,
-                videoUrl: videoExists ? localVideoUrl : null,
-                error: error.message
-            };
-        } else {
-            jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
-        }
+        jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
         // Auto-delete channel if it has exceeded upload limits (ONLY for admin automation)
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
@@ -1292,8 +1258,16 @@ async function processVideoQueue() {
             automationPendingCounters[username]--;
         }
 
-        // We no longer delete the sessionDir here because the 3-hour cleanup is safer.
-        // Aggressive cleanup (5s delay) caused race conditions when users retried sessions.
+        // Delay cleanup to avoid race conditions with the client starting a new session
+        setTimeout(async () => {
+            const sessionDir = path.dirname(audioPath);
+            if (await fs.pathExists(sessionDir)) {
+                await fs.remove(sessionDir).catch(err => console.error(`[Cleanup] Failed to remove session dir ${sessionDir}:`, err));
+            }
+            if (await fs.pathExists(outputVideoPath)) {
+                await fs.remove(outputVideoPath).catch(err => console.error(`[Cleanup] Failed to remove video file ${outputVideoPath}:`, err));
+            }
+        }, 5000); // 5-second delay
 
         isProcessingVideo = false;
         processVideoQueue();
@@ -2252,53 +2226,40 @@ router.post('/save-facebook-credentials', async (req, res) => {
     }
 });
 
+// --- Facebook Cookies Management (Puppeteer) ---
 
-// --- Admin Direct Facebook Token Management ---
-
-router.post('/api/admin/fb-token', async (req, res) => {
+router.get('/get-facebook-cookies', async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
 
-        const { token } = req.body;
-        if (!token) return res.status(400).json({ success: false, message: 'Token is required.' });
-
-        await saveFacebookToken('admin_direct', 'Admin Direct Access', { access_token: token }, 'direct');
-        res.json({ success: true, message: 'Direct Facebook Token updated successfully.' });
-    } catch (error) {
-        console.error('[Admin API Error]', error);
-        res.status(500).json({ success: false, error: 'Failed to update token.' });
-    }
-});
-
-router.get('/api/admin/fb-token-status', async (req, res) => {
-    try {
-        const username = req.session && req.session.username ? req.session.username : 'guest';
-        if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
-
-        const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
-        const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
-
-        res.json({
-            success: true,
-            hasToken: !!(adminDirect && adminDirect.access_token),
-            updatedAt: adminDirect ? adminDirect.updatedAt : null
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to check token status.' });
-    }
-});
-
-router.get('/api/config/fb-app-id', async (req, res) => {
-    try {
-        let appId = process.env.FACEBOOK_APP_ID;
-        if (!appId && await fs.pathExists(FACEBOOK_CREDENTIALS_PATH)) {
-            const creds = await fs.readJson(FACEBOOK_CREDENTIALS_PATH);
-            appId = creds.appId;
+        const COOKIES_PATH = path.join(process.cwd(), 'facebook_cookies.json');
+        if (await fs.pathExists(COOKIES_PATH)) {
+            const cookies = await fs.readJson(COOKIES_PATH);
+            res.json({ success: true, cookies: JSON.stringify(cookies, null, 2) });
+        } else {
+            res.json({ success: true, cookies: '[]' });
         }
-        res.json({ success: true, appId });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to fetch config.' });
+        console.error('Error reading FB cookies:', error);
+        res.status(500).json({ success: false, message: 'Failed to read Facebook cookies' });
+    }
+});
+
+router.post('/save-facebook-cookies', async (req, res) => {
+    const { cookies } = req.body;
+    try {
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
+
+        const parsedCookies = JSON.parse(cookies);
+        const COOKIES_PATH = path.join(process.cwd(), 'facebook_cookies.json');
+        await fs.writeJson(COOKIES_PATH, parsedCookies, { spaces: 2 });
+
+        res.json({ success: true, message: 'Facebook cookies saved successfully' });
+    } catch (error) {
+        console.error('Error saving FB cookies:', error);
+        res.status(500).json({ success: false, message: 'Invalid JSON format or write error' });
     }
 });
 
