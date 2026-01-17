@@ -961,11 +961,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fullUrl = window.location.origin + status.videoUrl;
                     errorHtml = `<div class="manual-fb-fallback">
                         <p style="color: #ef4444; margin-bottom: 8px;">Automated upload is restricted for profiles.</p>
-                        <button type="button" onclick="shareVideoToFacebook('${fullUrl}')" class="fb-share-btn">
+                        <button type="button" class="fb-share-btn" data-video-url="${fullUrl}">
                             <i class="fab fa-facebook"></i> Share to Profile
                         </button>
                         <p style="font-size: 11px; margin-top: 5px; opacity: 0.7;">This uses the Facebook Share Dialog (English/Manual)</p>
                     </div>`;
+
+                    // Always disable create button in fallback mode to prevent accidental double-clicks
+                    if (createVideoBtn) createVideoBtn.disabled = true;
                 }
 
                 setStatus(document.getElementById('final-status'), 'error', errorHtml);
@@ -973,11 +976,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!status.isManualFallback) {
                     resetAudio(true); resetImage(true);
-                    document.getElementById('create-video-btn').disabled = true;
+                    if (createVideoBtn) createVideoBtn.disabled = true;
                 }
             }
         }, 1000);
     }
+
+    // Delegated listener for the manual FB share button (robust against re-renders)
+    document.addEventListener('click', (e) => {
+        const fbBtn = e.target.closest('.fb-share-btn');
+        if (fbBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const videoUrl = fbBtn.dataset.videoUrl;
+            console.log('[FB Delegate] Caught share click for:', videoUrl);
+            if (videoUrl) shareVideoToFacebook(videoUrl);
+        }
+    });
 
     window.shareVideoToFacebook = function (videoUrl) {
         console.log('[FB Share] Triggering dialog for:', videoUrl);
