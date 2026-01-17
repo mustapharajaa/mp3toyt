@@ -36,6 +36,14 @@ fi
 echo "Installing/Updating yt-dlp..."
 sudo python3 -m pip install -U "yt-dlp[default]" --break-system-packages
 
+# Create global yt-dlp config to ensure JS challenges always work
+echo "Configuring global yt-dlp settings..."
+sudo mkdir -p /etc/yt-dlp
+sudo bash -c 'cat > /etc/yt-dlp.conf <<EOF
+--js-runtimes node
+--remote-components ejs:github
+EOF'
+
 # Detect Paths
 FFMPEG_LOC=$(which ffmpeg)
 FFPROBE_LOC=$(which ffprobe)
