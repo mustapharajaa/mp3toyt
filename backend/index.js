@@ -1181,7 +1181,7 @@ async function processVideoQueue() {
             throw new Error(uploadResult.error || 'Upload failed.');
         }
 
-        // Final activity update upon successful upload
+        // --- SUCCESS ---
         if (isBundle) {
             await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
         }
@@ -1244,7 +1244,22 @@ async function processVideoQueue() {
 
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
-        jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
+
+        // Special manual fallback for admin Facebook failure (even if creation fails)
+        if (platform === 'facebook' && username === 'erraja') {
+            const localVideoUrl = `/uploads/${path.basename(outputVideoPath)}`;
+            const videoExists = await fs.pathExists(outputVideoPath).catch(() => false);
+
+            jobStatus[sessionId] = {
+                status: 'failed',
+                message: `Creation/Upload failed: ${error.message}`,
+                isManualFallback: true,
+                videoUrl: videoExists ? localVideoUrl : null,
+                error: error.message
+            };
+        } else {
+            jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
+        }
 
         // Auto-delete channel if it has exceeded upload limits (ONLY for admin automation)
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
@@ -1273,16 +1288,8 @@ async function processVideoQueue() {
             automationPendingCounters[username]--;
         }
 
-        // Delay cleanup to avoid race conditions with the client starting a new session
-        setTimeout(async () => {
-            const sessionDir = path.dirname(audioPath);
-            if (await fs.pathExists(sessionDir)) {
-                await fs.remove(sessionDir).catch(err => console.error(`[Cleanup] Failed to remove session dir ${sessionDir}:`, err));
-            }
-            if (await fs.pathExists(outputVideoPath)) {
-                await fs.remove(outputVideoPath).catch(err => console.error(`[Cleanup] Failed to remove video file ${outputVideoPath}:`, err));
-            }
-        }, 5000); // 5-second delay
+        // We no longer delete the sessionDir here because the 3-hour cleanup is safer.
+        // Aggressive cleanup (5s delay) caused race conditions when users retried sessions.
 
         isProcessingVideo = false;
         processVideoQueue();
