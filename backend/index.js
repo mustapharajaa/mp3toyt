@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
-// import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js'; // REMOVED - using bundle-api
+import { uploadVideoToFacebook, saveFacebookToken } from './facebook-api.js';
 import * as bundleApi from './bundle-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
@@ -1128,6 +1128,24 @@ async function processVideoQueue() {
                 data: { id: mediaId },
                 url: `https://bundle.social/dashboard`
             };
+        } else if (platform === 'facebook' && username === 'erraja') {
+            // Direct Facebook Posting for Admin (erraja)
+            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
+            const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
+
+            if (!adminDirect || !adminDirect.access_token) {
+                throw new Error('Direct Facebook Access Token not configured for admin.');
+            }
+
+            console.log(`[Queue] Using direct Facebook Graph API for admin: erraja`);
+            if (jobStatus[sessionId]) jobStatus[sessionId].message = `Directly uploading to Facebook...`;
+
+            const metadata = { title, description };
+            const fbTargetId = channelId === 'admin_direct' ? 'me' : channelId;
+
+            uploadResult = await uploadVideoToFacebook(fbTargetId, adminDirect.access_token, outputVideoPath, metadata, (percent) => {
+                if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to Facebook... ${percent}%`;
+            });
         } else {
             // Direct YouTube API (Only for admin or specific claimed direct channels)
             console.log(`[Queue] Using direct YouTube API for user: ${username}`);
@@ -1145,7 +1163,23 @@ async function processVideoQueue() {
             });
         }
 
-        if (!uploadResult.success) throw new Error(uploadResult.error || 'Upload failed.');
+        const localVideoUrl = `/uploads/${path.basename(outputVideoPath)}`;
+
+        if (!uploadResult.success) {
+            // Special handling for admin direct FB upload failure
+            if (platform === 'facebook' && username === 'erraja') {
+                jobStatus[sessionId] = {
+                    status: 'failed',
+                    message: "Direct upload failed. You can still share manually.",
+                    error: uploadResult.error,
+                    videoUrl: localVideoUrl,
+                    isManualFallback: true,
+                    creationTime
+                };
+                return; // Stop here, but with a "recoverable" failure
+            }
+            throw new Error(uploadResult.error || 'Upload failed.');
+        }
 
         // Final activity update upon successful upload
         if (isBundle) {
@@ -2204,6 +2238,56 @@ router.post('/save-facebook-credentials', async (req, res) => {
     } catch (error) {
         console.error('Error saving FB credentials:', error);
         res.status(500).json({ success: false, message: 'Invalid JSON format or write error' });
+    }
+});
+
+
+// --- Admin Direct Facebook Token Management ---
+
+router.post('/api/admin/fb-token', async (req, res) => {
+    try {
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
+
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ success: false, message: 'Token is required.' });
+
+        await saveFacebookToken('admin_direct', 'Admin Direct Access', { access_token: token }, 'direct');
+        res.json({ success: true, message: 'Direct Facebook Token updated successfully.' });
+    } catch (error) {
+        console.error('[Admin API Error]', error);
+        res.status(500).json({ success: false, error: 'Failed to update token.' });
+    }
+});
+
+router.get('/api/admin/fb-token-status', async (req, res) => {
+    try {
+        const username = req.session && req.session.username ? req.session.username : 'guest';
+        if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
+
+        const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
+        const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
+
+        res.json({
+            success: true,
+            hasToken: !!(adminDirect && adminDirect.access_token),
+            updatedAt: adminDirect ? adminDirect.updatedAt : null
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to check token status.' });
+    }
+});
+
+router.get('/api/config/fb-app-id', async (req, res) => {
+    try {
+        let appId = process.env.FACEBOOK_APP_ID;
+        if (!appId && await fs.pathExists(FACEBOOK_CREDENTIALS_PATH)) {
+            const creds = await fs.readJson(FACEBOOK_CREDENTIALS_PATH);
+            appId = creds.appId;
+        }
+        res.json({ success: true, appId });
+    } catch (error) {
+        res.status(500).json({ success: false, error: 'Failed to fetch config.' });
     }
 });
 

@@ -13,6 +13,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
+    <!-- Facebook SDK for Admin Profile Sharing -->
+    <div id="fb-root"></div>
+    <script>
+        window.fbAsyncInit = function () {
+            // Will be initialized in mp3toyt.js with dynamic App ID
+        };
+    </script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -633,6 +642,8 @@
                     Tokens</button>
                 <button type="button" id="manage-channels-json-btn"><i class="fas fa-database"
                         style="color: #10b981;"></i> youtube Channels </button>
+                <button type="button" id="manage-fb-direct-btn" style="display: none;"><i
+                        class="fab fa-facebook-messenger" style="color: #60a5fa;"></i> Direct FB Token</button>
                 <button type="button" id="manage-fb-creds-btn"><i class="fab fa-facebook-f" style="color: #1877f2;"></i>
                     Facebook Credentials</button>
                 <button type="button" id="manage-credentials-btn"><i class="fas fa-file-code"
@@ -1161,6 +1172,34 @@
                     style="background: #e4e6eb; color: #050505;">Cancel</button>
                 <button type="button" id="save-credentials-btn" class="connect-btn" style="background: #1877f2;">Save
                     Credentials</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Facebook Direct Token Modal (Admin Only) -->
+    <div id="fbDirectModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; padding: 30px; border-radius: 16px;">
+            <span class="close-modal" id="close-fb-direct-modal">&times;</span>
+            <h2 style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px; color: #60a5fa;">
+                <i class="fab fa-facebook-messenger"></i> Admin Direct FB Token
+            </h2>
+            <p style="color: #666; font-size: 0.9rem; margin-bottom: 20px;">
+                Enter your long-lived Facebook Graph API Access Token.
+                <br><small>This token is used for direct posting (bypass Bundle) for erraja.</small>
+            </p>
+            <div class="form-group">
+                <textarea id="fb-direct-token-editor" spellcheck="false" placeholder="EAAQx8..."
+                    style="min-height: 150px; font-family: monospace; background: #fafafa; color: #333; border: 1px solid #ddd; padding: 12px; border-radius: 8px;"></textarea>
+            </div>
+            <div id="fb-token-status-info"
+                style="margin-bottom: 15px; font-size: 0.85rem; color: #16a34a; display: none;">
+                <i class="fas fa-check-circle"></i> Token is currently active.
+            </div>
+            <div class="modal-footer" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" id="cancel-fb-direct-btn" class="connect-btn"
+                    style="background: #e4e6eb; color: #050505;">Cancel</button>
+                <button type="button" id="save-fb-direct-btn" class="connect-btn"
+                    style="background: #1877f2; color: white;">Save Token</button>
             </div>
         </div>
     </div>

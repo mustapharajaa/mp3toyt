@@ -198,10 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const discBadge = '';
 
                     item.innerHTML = `
-                        <div class="avatar-wrapper">
+                        <div class="avatar-wrapper ${channel.type === 'direct' ? 'direct-account' : ''}">
                             <div class="delete-btn">×</div>
                             <div class="check-icon"><i class="fas fa-check"></i></div>
-                            <img src="${channel.thumbnail}" class="channel-avatar">
+                            <img src="${channel.thumbnail}" class="channel-avatar ${channel.type === 'direct' ? 'direct-icon' : ''}">
                             ${platformIcon}
                         </div>
 
@@ -955,13 +955,47 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (status.status === 'failed') {
                 clearInterval(interval);
                 if (progressBar) progressBar.style.backgroundColor = '#ef4444';
-                setStatus(document.getElementById('final-status'), 'error', `<strong>Upload Failed</strong>`);
-                showNotification('Upload Failed', 'error');
-                resetAudio(true); resetImage(true);
-                document.getElementById('create-video-btn').disabled = true;
+
+                let errorHtml = `<strong>Upload Failed</strong>`;
+                if (status.isManualFallback && status.videoUrl) {
+                    const fullUrl = window.location.origin + status.videoUrl;
+                    errorHtml = `<div class="manual-fb-fallback">
+                        <p style="color: #ef4444; margin-bottom: 8px;">Automated upload is restricted for profiles.</p>
+                        <button onclick="shareVideoToFacebook('${fullUrl}')" class="fb-share-btn">
+                            <i class="fab fa-facebook"></i> Share to Profile
+                        </button>
+                        <p style="font-size: 11px; margin-top: 5px; opacity: 0.7;">This uses the Facebook Share Dialog (English/Manual)</p>
+                    </div>`;
+                }
+
+                setStatus(document.getElementById('final-status'), 'error', errorHtml);
+                showNotification(status.isManualFallback ? 'Manual share required' : 'Upload Failed', 'error');
+
+                if (!status.isManualFallback) {
+                    resetAudio(true); resetImage(true);
+                    document.getElementById('create-video-btn').disabled = true;
+                }
             }
         }, 1000);
     }
+
+    window.shareVideoToFacebook = function (videoUrl) {
+        console.log('[FB Share] Triggering dialog for:', videoUrl);
+        if (!window.FB) {
+            showNotification('Facebook SDK not loaded.', 'error');
+            return;
+        }
+        window.FB.ui({
+            method: 'share',
+            href: videoUrl,
+        }, function (response) {
+            if (response && !response.error_message) {
+                showNotification('Successfully shared to Facebook!');
+            } else {
+                console.warn('[FB Share] User cancelled or error:', response);
+            }
+        });
+    };
 
     document.querySelectorAll('.visibility-options button').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -1323,6 +1357,76 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // --- Facebook Direct Token Management (Admin Only) ---
+    const fbDirectModal = document.getElementById('fbDirectModal');
+    const manageFbDirectBtn = document.getElementById('manage-fb-direct-btn');
+    const closeFbDirectModal = document.getElementById('close-fb-direct-modal');
+    const cancelFbDirectBtn = document.getElementById('cancel-fb-direct-btn');
+    const saveFbDirectBtn = document.getElementById('save-fb-direct-btn');
+    const fbDirectEditor = document.getElementById('fb-direct-token-editor');
+    const fbTokenStatusInfo = document.getElementById('fb-token-status-info');
+
+    const openFbDirectModal = async () => {
+        try {
+            const res = await fetch('/api/admin/fb-token-status');
+            const data = await res.json();
+            if (data.success) {
+                if (fbTokenStatusInfo) {
+                    fbTokenStatusInfo.style.display = data.hasToken ? 'block' : 'none';
+                    if (data.updatedAt) {
+                        fbTokenStatusInfo.innerHTML = `<i class="fas fa-check-circle"></i> Token active (Updated: ${new Date(data.updatedAt).toLocaleDateString()})`;
+                    }
+                }
+                fbDirectModal.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Error fetching FB direct status:', err);
+            showNotification('Error loading token status', 'error');
+        }
+    };
+
+    if (manageFbDirectBtn) {
+        manageFbDirectBtn.addEventListener('click', openFbDirectModal);
+    }
+
+    const closeFbDirect = () => { if (fbDirectModal) fbDirectModal.style.display = 'none'; };
+    if (closeFbDirectModal) closeFbDirectModal.onclick = closeFbDirect;
+    if (cancelFbDirectBtn) cancelFbDirectBtn.onclick = closeFbDirect;
+
+    if (saveFbDirectBtn) {
+        saveFbDirectBtn.addEventListener('click', async () => {
+            const token = fbDirectEditor.value.trim();
+            if (!token) {
+                showNotification('Please enter a token.', 'error');
+                return;
+            }
+
+            saveFbDirectBtn.disabled = true;
+            saveFbDirectBtn.textContent = 'Saving...';
+            try {
+                const res = await fetch('/api/admin/fb-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showNotification('Direct Facebook Token updated!', 'success');
+                    fbDirectEditor.value = '';
+                    closeFbDirect();
+                } else {
+                    showNotification(result.message || 'Failed to save', 'error');
+                }
+            } catch (err) {
+                console.error('Save FB direct error:', err);
+                showNotification('Error saving token', 'error');
+            } finally {
+                saveFbDirectBtn.disabled = false;
+                saveFbDirectBtn.textContent = 'Save Token';
+            }
+        });
+    }
+
 
     // --- Pricing Modal ---
     const pricingModal = document.getElementById('pricingModal');
@@ -1372,6 +1476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Modal behavior for Facebook credentials and Pricing
     window.addEventListener('click', (e) => {
         if (e.target === fbCredsModal) closeFbCreds();
+        if (e.target === fbDirectModal) closeFbDirect();
         if (e.target === pricingModal) pricingModal.style.display = 'none';
     });
 
@@ -1450,6 +1555,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function checkAuth() {
         try {
+            // --- Initialize Facebook SDK for Admin ---
+            fetch('/api/config/fb-app-id')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.appId) {
+                        window.FB.init({
+                            appId: data.appId,
+                            status: true,
+                            cookie: true,
+                            xfbml: true,
+                            version: 'v20.0'
+                        });
+                        console.log('[FB SDK] Initialized with App ID:', data.appId);
+                    }
+                })
+                .catch(err => console.error('[FB SDK] Init error:', err));
+
             const res = await fetch('/api/auth/me');
             const data = await res.json();
             const loginBtn = document.getElementById('login-btn-header');
@@ -1477,7 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show Cog menu for all logged-in users, but hide admin-only items
                 if (managementBtn) {
                     managementBtn.style.display = 'flex';
-                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-creds-btn', 'manage-credentials-btn'];
+                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-direct-btn', 'manage-fb-creds-btn', 'manage-credentials-btn'];
                     adminOnlyItems.forEach(id => {
                         const el = document.getElementById(id);
                         if (el) el.style.display = isAdmin ? 'flex' : 'none';

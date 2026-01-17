@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
 import { getTokenForChannel, getAuthenticatedChannelInfo } from './youtube-api.js';
-import { LOGOS_DIR, CHANNELS_PATH, ADMIN_CHANNELS_PATH } from './config.js';
+import { LOGOS_DIR, CHANNELS_PATH, ADMIN_CHANNELS_PATH, FACEBOOK_TOKENS_PATH } from './config.js';
 
 const ADMIN_USERNAME = 'erraja';
 
@@ -55,9 +55,8 @@ async function readChannels(username = null) {
 // Function to get all channels for a specific user
 async function getChannelsForUser(username) {
     const userChannels = await readChannels(username);
-    console.log(`[Channels] Found ${userChannels.length} channels for ${username}`);
 
-    return userChannels.map(channel => ({
+    const mappedChannels = userChannels.map(channel => ({
         channelId: channel.channelId,
         channelTitle: channel.channelTitle,
         thumbnail: channel.thumbnail,
@@ -68,6 +67,30 @@ async function getChannelsForUser(username) {
         username: channel.username,
         authenticatedAt: channel.authenticatedAt || channel.createdAt
     }));
+
+    // --- Admin Direct Facebook Channel (Virtual) ---
+    if (username === ADMIN_USERNAME) {
+        try {
+            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
+            const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
+            if (adminDirect && adminDirect.access_token) {
+                mappedChannels.push({
+                    channelId: 'admin_direct',
+                    channelTitle: 'Admin Direct FB',
+                    platform: 'facebook',
+                    thumbnail: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg',
+                    status: 'connected',
+                    username: ADMIN_USERNAME,
+                    type: 'direct'
+                });
+            }
+        } catch (err) {
+            console.error('[Channels] Error adding virtual FB channel:', err.message);
+        }
+    }
+
+    console.log(`[Channels] Returning ${mappedChannels.length} channels for ${username}`);
+    return mappedChannels;
 }
 
 async function saveChannel(channelData, username) {

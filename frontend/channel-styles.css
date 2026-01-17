@@ -218,3 +218,21 @@ body.dark-mode .channel-title {
 .toast-btn.confirm:hover {
     background: #dc2626;
 }
+
+/* Direct Account Highlight */
+.direct-account .direct-icon {
+    border-color: #3b82f6;
+    background-color: white;
+    padding: 2px;
+    border-radius: 8px; /* More square-like for an icon */
+}
+
+.channel-item.selected .direct-account .direct-icon {
+    border-color: #16a34a;
+    box-shadow: 0 0 15px rgba(22, 163, 74, 0.4);
+}
+
+body.dark-mode .direct-account .direct-icon {
+    background-color: #1e293b;
+    border-color: #334155;
+}
