@@ -1190,64 +1190,19 @@ async function processVideoQueue() {
             publishAt
         };
 
-        // --- SUCCESS: Update Permanent Automation Stats (ERRaja Admin Only) ---
-        if (username === 'erraja') {
-            await acquireAutomationLock();
-            try {
-                const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
-                stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
-
-                const currentCount = (stats[username] || 0) + 1;
-                if (currentCount >= 6) {
-                    console.log(`[Queue] 🏆 6-video cycle complete for ${username}. Marking ${channelId} as EXHAUSTED.`);
-                    const channelMeta = job.channelMeta || (await mp3toytChannels.getChannel(channelId, username));
-                    if (channelMeta) {
-                        await mp3toytChannels.saveChannel({ ...channelMeta, status: 'exhausted' }, username);
-                    }
-                    stats[username] = 0;
-                } else {
-                    stats[username] = currentCount;
-                }
-
-                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
-                console.log(`[Queue] Automation stats updated for ${username}: ${stats[username]}/6`);
-            } finally {
-                releaseAutomationLock();
-            }
-
-            // If the channel was marked for deletion during the queuing phase, delete it NOW after success
-            if (deleteChannelOnSuccess) {
-                console.log(`[Queue] Successfully uploaded 6th video. Permanently deleting exhausted channel/token: ${channelId}`);
-                try {
-                    await mp3toytChannels.deleteChannel(channelId, username);
-                    await deleteToken(channelId);
-                } catch (delErr) {
-                    console.error(`[Queue] Post-success deletion failed for ${channelId}:`, delErr.message);
-                }
-            }
-        }
+        // Note: Automation stats tracking removed for manual Facebook uploads.
+        // Stats should only increment for actual scheduled automation posts.
 
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
-        // Auto-delete channel if it has exceeded upload limits (ONLY for admin automation)
+        // Auto-delete channel if it has exceeded upload limits (ONLY for YouTube automation)
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
             console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
             try {
                 await mp3toytChannels.deleteChannel(channelId, username);
                 await deleteToken(channelId);
-
-                // Reset counter to 0 so the next channel starts fresh
-                await acquireAutomationLock();
-                try {
-                    const stats = await fs.readJson(AUTOMATION_STATS_PATH).catch(() => ({}));
-                    stats[username] = 0;
-                    await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
-                    console.log(`[Queue] Reset automation counter for ${username} to 0.`);
-                } finally {
-                    releaseAutomationLock();
-                }
             } catch (delErr) {
                 console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
             }
