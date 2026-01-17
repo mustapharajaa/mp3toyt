@@ -962,16 +962,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const fallbackSharer = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`;
 
                     errorHtml = `<div class="manual-fb-fallback">
-                        <p style="color: #ef4444; margin-bottom: 8px;">Automated upload is restricted for profiles.</p>
-                        <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
-                            <button type="button" class="fb-share-btn" data-video-url="${fullUrl}">
-                                <i class="fab fa-facebook"></i> Share to Profile (SDK)
+                        <p style="color: #ef4444; font-size: 14px; margin-bottom: 12px; font-weight: 600;">Automated Upload Disabled for Profiles</p>
+                        
+                        <div style="background: #fff3f3; border: 1px solid #ffcdd2; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                            <p style="color: #c62828; font-size: 13px; margin: 0 0 10px 0;"><strong>Important:</strong> "Sharing" only creates a link. To post a <strong>Real Video</strong>, use the download button below:</p>
+                            
+                            <a href="${status.videoUrl}" download class="fb-share-btn" style="background: #28a745; margin-bottom: 12px; text-decoration: none; display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box;">
+                                <i class="fas fa-download" style="margin-right: 8px;"></i> Step 1: Download Video
+                            </a>
+                            
+                            <p style="font-size: 12px; color: #666; margin: 0 0 10px 0;">Then, upload it manually to your Facebook Profile.</p>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 8px; align-items: center; opacity: 0.8;">
+                            <p style="font-size: 12px; margin: 0; color: #444;">Other options (Link only):</p>
+                            <button type="button" class="fb-share-btn" data-video-url="${fullUrl}" style="font-size: 13px; padding: 8px;">
+                                <i class="fab fa-facebook"></i> Share Link (SDK)
                             </button>
-                            <a href="${fallbackSharer}" target="_blank" class="fb-share-btn" style="background: #4267B2; display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 250px; text-decoration: none;">
-                                <i class="fas fa-external-link-alt" style="margin-right: 8px;"></i> Use Backup Share Link
+                            <a href="${fallbackSharer}" target="_blank" class="fb-share-btn" style="background: #4267B2; display: inline-flex; align-items: center; justify-content: center; width: 100%; max-width: 250px; text-decoration: none; font-size: 13px; padding: 8px;">
+                                <i class="fas fa-external-link-alt" style="margin-right: 8px;"></i> Backup Share Link
                             </a>
                         </div>
-                        <p style="font-size: 11px; margin-top: 8px; opacity: 0.7;">Try SDK first. Use Backup if the popup is stuck.</p>
                     </div>`;
 
                     // Always disable create button in fallback mode to prevent accidental double-clicks
