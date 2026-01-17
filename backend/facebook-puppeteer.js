@@ -24,8 +24,11 @@ export async function uploadVideoWithPuppeteer(videoPath, description, options =
         throw new Error('Facebook cookies not found. Please provide cookies in facebook_cookies.json');
     }
 
+    // Auto-detect: headless on server (no DISPLAY), visible on local PC
+    const isServer = !process.env.DISPLAY && process.platform === 'linux';
+
     const browser = await puppeteer.launch({
-        headless: false, // Visible for monitoring
+        headless: isServer, // Headless on VPS, visible on local
         defaultViewport: null, // Full page
         args: [
             '--no-sandbox',
