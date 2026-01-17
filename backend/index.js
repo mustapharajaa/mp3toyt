@@ -1129,7 +1129,8 @@ async function processVideoQueue() {
                 url: `https://bundle.social/dashboard`
             };
         } else if (platform === 'facebook' && username === 'erraja') {
-            // Direct Facebook Posting for Admin (erraja)
+            // Direct Facebook Posting for Admin (erraja) - DISABLED PER USER REQUEST (using manual fallback instead)
+            /* 
             const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
             const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
 
@@ -1146,6 +1147,9 @@ async function processVideoQueue() {
             uploadResult = await uploadVideoToFacebook(fbTargetId, adminDirect.access_token, outputVideoPath, metadata, (percent) => {
                 if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to Facebook... ${percent}%`;
             });
+            */
+            console.log(`[Queue] Facebook Graph API for admin is DISABLED. Using manual fallback.`);
+            uploadResult = { success: false, error: 'Manual fallback enabled.' };
         } else {
             // Direct YouTube API (Only for admin or specific claimed direct channels)
             console.log(`[Queue] Using direct YouTube API for user: ${username}`);
