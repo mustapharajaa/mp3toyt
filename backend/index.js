@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { google } from 'googleapis';
 import { getAuthenticatedChannelInfo, uploadVideo, getAuthUrl, saveTokenFromCode, deleteToken } from './youtube-api.js';
-// import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js'; // REMOVED - using bundle-api
+import { getFacebookAuthUrl, getFacebookTokenFromCode, getFacebookUserInfo, saveFacebookToken } from './facebook-api.js';
 import * as bundleApi from './bundle-api.js';
 import * as mp3toytChannels from './channels.js';
 import formidable from 'formidable';
@@ -1851,8 +1851,20 @@ router.get('/auth/mp3toyt', async (req, res) => {
 
 router.get('/auth/facebook', async (req, res) => {
     try {
-        // We use the same callback URL, though strictly speaking Bundle might just need *any* URL to redirect back to.
+        const username = req.session && req.session.username ? req.session.username : 'guest';
         const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
+
+        // ADMIN OVERRIDE: Direct Facebook Auth for 'erraja'
+        if (username === 'erraja') {
+            console.log(`[Auth] Initiating Direct Facebook Auth for admin: ${username}`);
+            const directUrl = await getFacebookAuthUrl(redirectUri);
+            if (!directUrl) {
+                return res.status(500).send('Could not generate Facebook URL. Check facebook_credentials.json');
+            }
+            return res.redirect(directUrl);
+        }
+
+        // We use the same callback URL, though strictly speaking Bundle might just need *any* URL to redirect back to.
         const connectUrl = await bundleApi.getFacebookConnectUrl(redirectUri);
 
         if (!connectUrl) {
@@ -1939,11 +1951,65 @@ async function claimBundleChannels(username, targetInstanceId = null) {
 router.get('/auth/facebook/callback', async (req, res) => {
     // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
     const username = req.session && req.session.username ? req.session.username : 'guest';
-    const { inst } = req.query;
-
-    // Attempt to claim any new channels (Targeted if inst provided)
+    const { inst, code } = req.query;
     let newChannelId = '';
-    if (username !== 'guest') {
+
+    // --- CASE A: Direct Facebook Auth (Admin 'erraja') ---
+    if (code && username === 'erraja') {
+        try {
+            console.log(`[Auth] Code received for direct Facebook auth (Admin: ${username})`);
+            const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
+
+            // 1. Exchange code for user access token
+            const tokenData = await getFacebookTokenFromCode(code, redirectUri);
+            const userAccessToken = tokenData.access_token;
+
+            // 2. Get User Info and Pages
+            const userInfo = await getFacebookUserInfo(userAccessToken);
+
+            // 3. Save User Token (optional, mostly for specific user actions)
+            await saveFacebookToken(userInfo.user.id, userInfo.user.name, {
+                access_token: userAccessToken,
+                expires_in: tokenData.expires_in
+            }, 'user');
+
+            // 4. Process Pages
+            if (userInfo.pages && userInfo.pages.length > 0) {
+                console.log(`[Auth] Found ${userInfo.pages.length} pages for admin.`);
+
+                for (const page of userInfo.pages) {
+                    // Save Page Token
+                    await saveFacebookToken(page.id, page.name, {
+                        access_token: page.access_token
+                    }, 'page');
+
+                    // Save as Channel (in admin_channels.json)
+                    await mp3toytChannels.saveChannel({
+                        channelId: page.id,
+                        channelTitle: page.name,
+                        thumbnail: `https://graph.facebook.com/${page.id}/picture?type=normal`, // Simple graph image
+                        platform: 'facebook',
+                        socialAccountId: userInfo.user.id, // Linked to FB User ID
+                        bundleInstanceId: undefined, // Explicitly NOT bundle
+                        status: 'connected',
+                        authType: 'direct' // Clean marker
+                    }, username);
+
+                    // Set the last one as "new" for the UI popup
+                    newChannelId = page.id;
+                }
+            } else {
+                console.warn('[Auth] No pages found for this Facebook user.');
+            }
+
+        } catch (err) {
+            console.error('[Auth] Direct Facebook Auth Failed:', err.response ? err.response.data : err.message);
+            return res.status(500).send('Direct Facebook Auth Failed: ' + err.message);
+        }
+    }
+    // --- CASE B: Bundle.social Auth (Regular Users) ---
+    else if (username !== 'guest') {
+        // Attempt to claim any new channels (Targeted if inst provided)
         const claimed = await claimBundleChannels(username, inst);
         if (claimed.length > 0) {
             newChannelId = claimed[0];
