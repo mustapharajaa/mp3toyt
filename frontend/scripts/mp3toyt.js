@@ -1185,6 +1185,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 1. Get user ID by username
                 const usersRes = await fetch('/api/users');
                 const users = await usersRes.json();
+
+                if (!usersRes.ok || !Array.isArray(users)) {
+                    showNotification(users.message || 'Failed to fetch user list', 'error');
+                    return;
+                }
+
                 const user = users.find(u => u.username === username);
 
                 if (!user) {

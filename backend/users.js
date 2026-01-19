@@ -45,9 +45,22 @@ export function isAuthenticated(req, res, next) {
 /**
  * Middleware to check if user is admin
  */
-export function isAdmin(req, res, next) {
-    if (req.session && req.session.userId && req.session.role === 'admin') {
-        return next();
+export async function isAdmin(req, res, next) {
+    if (req.session && req.session.userId) {
+        // First check session
+        if (req.session.role === 'admin') return next();
+
+        // Fallback: load fresh data from file in case it was changed manually
+        try {
+            const users = await loadUsers();
+            const user = users.find(u => u.id === req.session.userId);
+            if (user && user.role === 'admin') {
+                req.session.role = 'admin'; // Sync it
+                return next();
+            }
+        } catch (error) {
+            console.error('Error in isAdmin check:', error);
+        }
     }
     res.status(403).json({ success: false, message: 'Forbidden: Admins only' });
 }
