@@ -45,9 +45,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session({
     secret: process.env.SESSION_SECRET || 'mp3toyt_secret_key_change_me',
     resave: false,
-    saveUninitialized: false, // Don't create session until something is stored
+    saveUninitialized: false,
+    proxy: true, // Required for secure cookies behind a reverse proxy (Cloudflare/Nginx)
     cookie: {
-        secure: false, // Set to true if using HTTPS
+        secure: true, // Always true for HTTPS
+        httpOnly: true,
+        sameSite: 'lax', // Needed for OAuth redirects to work
         maxAge: 24 * 60 * 60 * 1000 // 24 hours 
     }
 }));
