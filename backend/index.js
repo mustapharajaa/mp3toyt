@@ -1447,6 +1447,60 @@ router.post('/start-automation', async (req, res) => {
 
             console.log(`[Automation] Consuming Channel: ${activeChannel.channelTitle} (ID: ${activeChannel.channelId}) | Saved: ${savedCount}, Pending: ${pendingCount}, Total Assigned: ${nextCount}/6`);
 
+            // --- SYNCHRONOUS SCHEDULING CALCULATION (to prevent race conditions) ---
+            const cycleIndex = activeUserCount % 6;
+            let visibility = 'public';
+            let publishAt = null;
+
+            console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
+
+            if (cycleIndex > 0) {
+                // Videos 2-6: Schedule based on the cycle start date
+                visibility = 'private';
+                let cycleStartDate;
+
+                if (stats.current_cycle_start) {
+                    cycleStartDate = new Date(stats.current_cycle_start);
+                } else {
+                    // Fallback: use today (shouldn't happen if cycle logic is sound)
+                    cycleStartDate = new Date();
+                    console.warn('[Automation] No cycle start date found, using today as fallback.');
+                }
+
+                const daysOffset = cycleIndex * 2;
+                const publishDate = new Date(cycleStartDate.getTime());
+                publishDate.setDate(publishDate.getDate() + daysOffset);
+
+                // Randomize hour (9 AM to 9 PM) and minutes
+                const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                const randomMin = Math.floor(Math.random() * 60);
+                publishDate.setHours(randomHour, randomMin, 0, 0);
+
+                publishAt = publishDate.toISOString();
+                console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from cycle start: ${publishAt}`);
+            } else {
+                // Video 1: Random delay and set the cycle start
+                const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                const cycleStartDate = new Date();
+                cycleStartDate.setDate(cycleStartDate.getDate() + randomDays);
+
+                if (randomDays === 0) {
+                    console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
+                } else {
+                    visibility = 'private';
+                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                    const randomMin = Math.floor(Math.random() * 60);
+                    cycleStartDate.setHours(randomHour, randomMin, 0, 0);
+                    publishAt = cycleStartDate.toISOString();
+                    console.log(`[Automation] [Mode: RANDOM_SCHEDULE] First video scheduled for ${randomDays} days from now: ${publishAt}`);
+                }
+
+                // Save the cycle start date for subsequent videos
+                stats.current_cycle_start = cycleStartDate.toISOString();
+                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                console.log(`[Automation] Saved cycle start date: ${stats.current_cycle_start}`);
+            }
+
             // Track this as pending immediately to "reserve" the slot
             automationPendingCounters[username] = (automationPendingCounters[username] || 0) + 1;
 
@@ -1527,45 +1581,7 @@ router.post('/start-automation', async (req, res) => {
                     finalAudioPath = await concatenateAudioFiles(sessionDir);
                     console.log(`[Automation] Merging complete: ${finalAudioPath}`);
                 }
-                // 7. Determine Scheduling (6-video cycle based on userCount before increment)
-                const cycleIndex = activeUserCount % 6;
-                let visibility = 'public';
-                let publishAt = null;
-
-                console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
-
-                if (cycleIndex > 0) {
-                    visibility = 'private'; // Scheduled videos must be private first
-                    const daysOffset = cycleIndex * 2;
-                    const publishDate = new Date();
-                    publishDate.setDate(publishDate.getDate() + daysOffset);
-
-                    // Randomize hour (9 AM to 9 PM) and minutes
-                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
-                    const randomMin = Math.floor(Math.random() * 60);
-                    publishDate.setHours(randomHour, randomMin, 0, 0);
-
-                    publishAt = publishDate.toISOString();
-                    console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from now: ${publishAt}`);
-                } else {
-                    const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
-                    if (randomDays === 0) {
-                        console.log(`[Automation] [Mode: PUBLIC] First video of cycle. Uploading immediately.`);
-                    } else {
-                        visibility = 'private';
-                        const publishDate = new Date();
-                        publishDate.setDate(publishDate.getDate() + randomDays);
-
-                        const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
-                        const randomMin = Math.floor(Math.random() * 60);
-                        publishDate.setHours(randomHour, randomMin, 0, 0);
-
-                        publishAt = publishDate.toISOString();
-                        console.log(`[Automation] [Mode: RANDOM_SCHEDULE] First video scheduled for ${randomDays} days from now: ${publishAt}`);
-                    }
-                }
-
-                // 8. Add to videoQueue
+                // 7. Add to videoQueue (visibility & publishAt are pre-calculated in the lock)
                 const platform = activeChannel.platform || 'youtube';
                 console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
 
