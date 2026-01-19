@@ -42,15 +42,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Session Middleware
+const isProduction = process.env.NODE_ENV === 'production' || process.env.BASE_URL?.includes('liveenity.com');
+
+// Session Middleware
 app.use(session({
     secret: process.env.SESSION_SECRET || 'mp3toyt_secret_key_change_me',
     resave: false,
     saveUninitialized: false,
     proxy: true, // Required for secure cookies behind a reverse proxy (Cloudflare/Nginx)
     cookie: {
-        secure: true, // Always true for HTTPS
+        secure: isProduction, // True for HTTPS in production
         httpOnly: true,
-        sameSite: 'lax', // Needed for OAuth redirects to work
+        sameSite: 'lax',
+        domain: isProduction ? '.liveenity.com' : undefined, // Share cookie between www and root
         maxAge: 24 * 60 * 60 * 1000 // 24 hours 
     }
 }));
