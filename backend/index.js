@@ -1659,8 +1659,8 @@ router.get('/auth/mp3toyt', async (req, res) => {
             return res.redirect(connectUrl);
         }
 
-        // Generate the redirect URI based on the request host
-        const redirectUri = `${req.protocol}://${req.get('host')}/mp3toyt/oauth2callback`;
+        // Generate the redirect URI based on BASE_URL or request host
+        const redirectUri = getRedirectUri(req, '/mp3toyt/oauth2callback');
 
         // getAuthUrl will throw if credentials.json is bad, triggering the catch block below
         const authUrl = getAuthUrl(redirectUri, 'mp3toyt');
