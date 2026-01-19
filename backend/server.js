@@ -16,6 +16,20 @@ const PORT = process.env.PORT || 8000;
 // Trust Proxy for Cloudflare/SSL
 app.set('trust proxy', 1);
 
+// Force Domain Middleware (Canonical redirection)
+app.use((req, res, next) => {
+    if (process.env.BASE_URL && process.env.NODE_ENV === 'production' && req.method === 'GET') {
+        const baseUrl = new URL(process.env.BASE_URL);
+        const currentHost = req.get('host');
+
+        // If current host doesn't match BASE_URL host, redirect
+        if (currentHost !== baseUrl.host) {
+            return res.redirect(301, `${baseUrl.protocol}//${baseUrl.host}${req.originalUrl}`);
+        }
+    }
+    next();
+});
+
 import { trackVisitor } from './visitors.js';
 
 // Visitor Tracking Middleware
