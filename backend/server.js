@@ -29,7 +29,6 @@ app.use(async (req, res, next) => {
 
         // Only track if it's a page request
         if (req.method === 'GET' && (req.path === '/app' || req.path === '/' || req.path === '/app/')) {
-            console.log(`[Visitor Debug] Request to ${req.path} from ${ip}`);
             trackVisitor(ip);
         }
     } catch (e) {

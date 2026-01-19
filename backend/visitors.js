@@ -44,7 +44,6 @@ async function saveVisitors(data) {
  * Tracks a visitor by IP and geolocates if new.
  */
 export async function trackVisitor(ip) {
-    console.log('[Visitor Debug] Tracking IP:', ip);
     if (!ip) return;
 
     const data = await loadVisitors();
@@ -67,7 +66,6 @@ export async function trackVisitor(ip) {
                     const country = geo.country || 'Unknown';
                     data.ipAddresses[ip] = { country, hits: 1 };
                     data.visitorsPerCountry[country] = (data.visitorsPerCountry[country] || 0) + 1;
-                    console.log(`[Visitor Debug] Geolocated ${ip} to ${country}`);
                 } else {
                     data.ipAddresses[ip] = { country: 'Unknown', hits: 1 };
                 }

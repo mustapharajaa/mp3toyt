@@ -1,6 +1,11 @@
 {
-    "totalVisitors": 0,
-    "uniqueVisitors": 0,
-    "visitorsPerCountry": {},
-    "ipAddresses": {}
+  "totalVisitors": 1,
+  "uniqueVisitors": 1,
+  "visitorsPerCountry": {},
+  "ipAddresses": {
+    "::1": {
+      "country": "Error",
+      "hits": 1
+    }
+  }
 }

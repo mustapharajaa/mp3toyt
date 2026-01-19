@@ -1199,7 +1199,6 @@ async function processVideoQueue() {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
-        // Auto-delete channel if it has exceeded upload limits (ONLY for YouTube automation)
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
             console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
             try {
@@ -1210,9 +1209,28 @@ async function processVideoQueue() {
             }
         }
     } finally {
-        // Always decrement pending counter regardless of success/failure
-        if (username && automationPendingCounters[username] > 0) {
-            automationPendingCounters[username]--;
+        try {
+            await acquireAutomationLock();
+            // Update stats if successful
+            if (jobStatus[sessionId].status === 'complete') {
+                let stats = {};
+                if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                    stats = await fs.readJson(AUTOMATION_STATS_PATH);
+                }
+                stats[username] = (stats[username] || 0) + 1;
+                stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
+                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                console.log(`[Automation Stats] Updated for ${username}: ${stats[username]} total videos.`);
+            }
+
+            // Always decrement pending counter regardless of success/failure
+            if (username && automationPendingCounters[username] > 0) {
+                automationPendingCounters[username]--;
+            }
+        } catch (lockErr) {
+            console.error('[Automation Stats] Failed to update stats or decrement counter:', lockErr);
+        } finally {
+            releaseAutomationLock();
         }
 
         // Delay cleanup to avoid race conditions with the client starting a new session
