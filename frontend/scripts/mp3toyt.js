@@ -1148,6 +1148,74 @@ document.addEventListener('DOMContentLoaded', () => {
     if (closeChannelsJSONBtn) closeChannelsJSONBtn.addEventListener('click', closeChannelsJSON);
     if (cancelChannelsJSONBtn) cancelChannelsJSONBtn.addEventListener('click', closeChannelsJSON);
 
+    // --- User Plan Management ---
+    const userPlanModal = document.getElementById('userPlanModal');
+    const manageUserPlansBtn = document.getElementById('manage-user-plans-btn');
+    const closeUserPlanBtn = document.getElementById('close-user-plan-modal');
+    const cancelUserPlanBtn = document.getElementById('cancel-user-plan-btn');
+    const saveUserPlanBtn = document.getElementById('save-user-plan-btn');
+    const updatePlanUsernameInput = document.getElementById('update-plan-username');
+    const updatePlanSelect = document.getElementById('update-plan-select');
+
+    if (manageUserPlansBtn) {
+        manageUserPlansBtn.addEventListener('click', () => {
+            managementDropdown.classList.remove('show');
+            userPlanModal.style.display = 'flex';
+        });
+    }
+
+    const closeUserPlan = () => { userPlanModal.style.display = 'none'; };
+    if (closeUserPlanBtn) closeUserPlanBtn.addEventListener('click', closeUserPlan);
+    if (cancelUserPlanBtn) cancelUserPlanBtn.addEventListener('click', closeUserPlan);
+
+    if (saveUserPlanBtn) {
+        saveUserPlanBtn.addEventListener('click', async () => {
+            const username = updatePlanUsernameInput.value.trim();
+            const plan = updatePlanSelect.value;
+
+            if (!username) {
+                showNotification('Please enter a username', 'error');
+                return;
+            }
+
+            saveUserPlanBtn.disabled = true;
+            saveUserPlanBtn.textContent = 'Saving...';
+
+            try {
+                // 1. Get user ID by username
+                const usersRes = await fetch('/api/users');
+                const users = await usersRes.json();
+                const user = users.find(u => u.username === username);
+
+                if (!user) {
+                    showNotification('User not found', 'error');
+                    return;
+                }
+
+                // 2. Update plan
+                const updateRes = await fetch(`/api/users/${user.id}/plan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan })
+                });
+
+                const data = await updateRes.json();
+                if (data.success) {
+                    showNotification(`Plan updated to ${plan} for ${username}`);
+                    closeUserPlan();
+                } else {
+                    showNotification(data.message || 'Failed to update plan', 'error');
+                }
+            } catch (err) {
+                console.error('Error updating user plan:', err);
+                showNotification('Error updating user plan', 'error');
+            } finally {
+                saveUserPlanBtn.disabled = false;
+                saveUserPlanBtn.textContent = 'Save Changes';
+            }
+        });
+    }
+
     if (saveChannelsJSONBtn) {
         saveChannelsJSONBtn.addEventListener('click', async () => {
             saveChannelsJSONBtn.disabled = true;
@@ -1528,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show Cog menu for all logged-in users, but hide admin-only items
                 if (managementBtn) {
                     managementBtn.style.display = 'flex';
-                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-fb-creds-btn', 'manage-credentials-btn', 'manage-fb-cookies-btn'];
+                    const adminOnlyItems = ['manage-cookies-btn', 'manage-tokens-btn', 'manage-channels-json-btn', 'manage-user-plans-btn', 'manage-fb-creds-btn', 'manage-credentials-btn', 'manage-fb-cookies-btn'];
                     adminOnlyItems.forEach(id => {
                         const el = document.getElementById(id);
                         if (el) el.style.display = isAdmin ? 'flex' : 'none';

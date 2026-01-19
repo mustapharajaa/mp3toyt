@@ -642,6 +642,8 @@
                     Tokens</button>
                 <button type="button" id="manage-channels-json-btn"><i class="fas fa-database"
                         style="color: #10b981;"></i> youtube Channels </button>
+                <button type="button" id="manage-user-plans-btn"><i class="fas fa-user-edit"
+                        style="color: #f59e0b;"></i> Users Plans </button>
                 <button type="button" id="manage-fb-direct-btn" style="display: none;"><i
                         class="fab fa-facebook-messenger" style="color: #60a5fa;"></i> Direct FB Token</button>
                 <button type="button" id="manage-fb-creds-btn"><i class="fab fa-facebook-f" style="color: #1877f2;"></i>
@@ -732,8 +734,10 @@
 
         <div class="right-column">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <label id="channel-list-label" style="display: block; font-weight: 500; font-size: 0.9rem;">Select Account:</label>
-                <button type="button" id="done-managing-header" style="display: none; background: #dcfce7; color: #16a34a; border: 1px solid #16a34a; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+                <label id="channel-list-label" style="display: block; font-weight: 500; font-size: 0.9rem;">Select
+                    Account:</label>
+                <button type="button" id="done-managing-header"
+                    style="display: none; background: #dcfce7; color: #16a34a; border: 1px solid #16a34a; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
                     <i class="fas fa-check"></i> Done Managing
                 </button>
             </div>
@@ -1232,6 +1236,38 @@
                     style="background: #e4e6eb; color: #050505;">Cancel</button>
                 <button type="button" id="save-fb-cookies-btn" class="connect-btn"
                     style="background: #f59e0b; color: white;">Save Cookies</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Plan Management Modal -->
+    <div id="userPlanModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 450px; padding: 30px; border-radius: 16px;">
+            <span class="close-modal" id="close-user-plan-modal">&times;</span>
+            <h2 style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #f59e0b;">
+                <i class="fas fa-user-edit"></i> Manage User Plans
+            </h2>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="update-plan-username"
+                    style="display: block; margin-bottom: 8px; font-weight: 500;">Username</label>
+                <input type="text" id="update-plan-username" class="form-control" placeholder="Enter username"
+                    style="width: 100%;">
+            </div>
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label for="update-plan-select" style="display: block; margin-bottom: 8px; font-weight: 500;">Select
+                    Plan</label>
+                <select id="update-plan-select" class="form-control"
+                    style="width: 100%; padding: 10px; border-radius: 8px;">
+                    <option value="free">Free</option>
+                    <option value="basic">Basic</option>
+                    <option value="pro">Pro</option>
+                </select>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" id="cancel-user-plan-btn" class="connect-btn"
+                    style="background: #e4e6eb; color: #050505;">Cancel</button>
+                <button type="button" id="save-user-plan-btn" class="connect-btn"
+                    style="background: #f59e0b; color: white;">Save Changes</button>
             </div>
         </div>
     </div>
