@@ -22,8 +22,9 @@ import { trackVisitor } from './visitors.js';
 app.use(async (req, res, next) => {
     try {
         let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-        if (typeof ip === 'string' && ip.includes(',')) {
-            ip = ip.split(',')[0].trim();
+        if (typeof ip === 'string') {
+            if (ip.includes(',')) ip = ip.split(',')[0].trim();
+            if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
         }
 
         // Only track if it's a page request
