@@ -127,9 +127,34 @@ router.post('/auth/logout', (req, res) => {
 });
 
 // Get Current User
-router.get('/auth/me', (req, res) => {
+router.get('/auth/me', async (req, res) => {
     if (req.session && req.session.userId) {
-        res.json({ success: true, user: { id: req.session.userId, username: req.session.username, role: req.session.role } });
+        try {
+            const users = await loadUsers();
+            const user = users.find(u => u.id === req.session.userId);
+
+            if (user) {
+                // Keep session in sync with file
+                req.session.role = user.role;
+                req.session.plan = user.plan || 'free';
+
+                return res.json({
+                    success: true,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        role: user.role,
+                        plan: user.plan || 'free'
+                    }
+                });
+            }
+            // If user not found in file (e.g. deleted), clear session
+            req.session.destroy();
+            res.json({ success: false, user: null });
+        } catch (error) {
+            console.error('Error in /auth/me:', error);
+            res.status(500).json({ success: false, message: 'Server error' });
+        }
     } else {
         res.json({ success: false, user: null });
     }

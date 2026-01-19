@@ -265,15 +265,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const manageChannelsBtn = document.getElementById('manage-channels-btn');
+    const doneManagingHeader = document.getElementById('done-managing-header');
+
     if (manageChannelsBtn) {
         manageChannelsBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent dropdown from closing
+            const managementDropdown = document.getElementById('management-dropdown');
+            if (managementDropdown) managementDropdown.classList.remove('show');
+
             const channelList = document.getElementById('channel-list');
             const isManaging = channelList.classList.toggle('manage-mode');
+
+            // Show/Hide header button
+            if (doneManagingHeader) {
+                doneManagingHeader.style.display = isManaging ? 'inline-block' : 'none';
+            }
+
             manageChannelsBtn.innerHTML = isManaging ?
                 '<i class="fas fa-check" style="color: #22c55e;"></i> Done Managing' :
                 '<i class="fas fa-list-ul" style="color: #4b5563;"></i> Manage Channels';
             manageChannelsBtn.style.color = isManaging ? '#22c55e' : '';
+        });
+    }
+
+    if (doneManagingHeader) {
+        doneManagingHeader.addEventListener('click', () => {
+            const channelList = document.getElementById('channel-list');
+            if (channelList) channelList.classList.remove('manage-mode');
+            doneManagingHeader.style.display = 'none';
+
+            // Reset management button text if it exists
+            if (manageChannelsBtn) {
+                manageChannelsBtn.innerHTML = '<i class="fas fa-list-ul" style="color: #4b5563;"></i> Manage Channels';
+                manageChannelsBtn.style.color = '';
+            }
         });
     }
 
@@ -1512,7 +1536,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (automationBtn) automationBtn.style.display = isAdmin ? 'flex' : 'none';
-                if (upgradeBtn) upgradeBtn.style.display = (data.user.plan !== 'pro') ? 'flex' : 'none';
+
+                if (upgradeBtn) {
+                    upgradeBtn.style.display = 'flex';
+                    if (data.user.plan === 'pro') {
+                        upgradeBtn.innerHTML = '<i class="fas fa-crown" style="color: #f59e0b;"></i> Pro Plan';
+                    } else if (data.user.plan === 'basic') {
+                        upgradeBtn.innerHTML = '<i class="fas fa-crown" style="color: #f59e0b;"></i> Basic Plan';
+                    } else {
+                        upgradeBtn.innerHTML = '<i class="fas fa-crown" style="color: #f59e0b;"></i> Upgrade';
+                    }
+                }
 
                 // Show Manage Users if Admin
                 if (data.user.role === 'admin' && manageUsersLink) {

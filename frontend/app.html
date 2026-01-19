@@ -731,7 +731,12 @@
         </div>
 
         <div class="right-column">
-            <label style="display: block; margin-bottom: 5px;" id="channel-list-label">Select Account:</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <label id="channel-list-label" style="display: block; font-weight: 500; font-size: 0.9rem;">Select Account:</label>
+                <button type="button" id="done-managing-header" style="display: none; background: #dcfce7; color: #16a34a; border: 1px solid #16a34a; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer;">
+                    <i class="fas fa-check"></i> Done Managing
+                </button>
+            </div>
             <link rel="stylesheet" href="channel-styles.css">
             <div id="channel-list" class="channel-grid">
                 <!-- Channels will be injected here as avatars -->
