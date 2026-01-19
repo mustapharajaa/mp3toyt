@@ -1195,6 +1195,27 @@ async function processVideoQueue() {
         // Note: Automation stats tracking removed for manual Facebook uploads.
         // Stats should only increment for actual scheduled automation posts.
 
+        // --- Channel Deletion for Automation Cycle (6th Video) ---
+        if (deleteChannelOnSuccess) {
+            console.log(`[Automation] Cycle Complete (6/6). Deleting channel ${channelId} to rotate.`);
+            try {
+                // If it's a bundle channel, try to disconnect from Bundle first (optional but good hygiene)
+                if (isBundle && bundleInstanceId) {
+                    // Note: disconnectPlatform might throw if already disconnected, safe to ignore or log
+                    await bundleApi.disconnectPlatform(bundleInstanceId, platform).catch(e => console.warn('[Automation] Bundle disconnect warning:', e.message));
+                }
+
+                // Delete from local DB and remove tokens
+                await mp3toytChannels.deleteChannel(channelId, username);
+                if (!isBundle) {
+                    await deleteToken(channelId);
+                }
+                console.log(`[Automation] Channel ${channelId} deleted/rotated successfully.`);
+            } catch (delErr) {
+                console.error(`[Automation] Failed to delete channel ${channelId} after cycle completion:`, delErr);
+            }
+        }
+
     } catch (error) {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
@@ -1202,8 +1223,13 @@ async function processVideoQueue() {
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
             console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
             try {
+                if (isBundle && bundleInstanceId) {
+                    await bundleApi.disconnectPlatform(bundleInstanceId, platform).catch(e => console.warn('[Automation Error] Bundle disconnect warning:', e.message));
+                }
                 await mp3toytChannels.deleteChannel(channelId, username);
-                await deleteToken(channelId);
+                if (!isBundle) {
+                    await deleteToken(channelId);
+                }
             } catch (delErr) {
                 console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
             }
@@ -1217,10 +1243,18 @@ async function processVideoQueue() {
                 if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
                     stats = await fs.readJson(AUTOMATION_STATS_PATH);
                 }
-                stats[username] = (stats[username] || 0) + 1;
+
+                if (deleteChannelOnSuccess) {
+                    // Reset stats for the user since we've rotated (Channel A gone, B is now index 0)
+                    stats[username] = 0;
+                    console.log(`[Automation Stats] Cycle Complete. Reset count to 0 for ${username}.`);
+                } else {
+                    stats[username] = (stats[username] || 0) + 1;
+                    console.log(`[Automation Stats] Updated for ${username}: ${stats[username]} videos in current cycle.`);
+                }
+
                 stats.total_lifetime_videos = (stats.total_lifetime_videos || 0) + 1;
                 await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
-                console.log(`[Automation Stats] Updated for ${username}: ${stats[username]} total videos.`);
             }
 
             // Always decrement pending counter regardless of success/failure
