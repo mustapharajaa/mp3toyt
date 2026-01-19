@@ -1544,6 +1544,10 @@ router.post('/start-automation', async (req, res) => {
         }
 
         // 5. Start background processing (Don't block response)
+        // NOTE: visibility and publishAt are already calculated in the lock above
+        const preCalculatedVisibility = visibility;
+        const preCalculatedPublishAt = publishAt;
+
         (async () => {
             try {
                 const downloadedFiles = [];
@@ -1583,7 +1587,7 @@ router.post('/start-automation', async (req, res) => {
                 }
                 // 7. Add to videoQueue (visibility & publishAt are pre-calculated in the lock)
                 const platform = activeChannel.platform || 'youtube';
-                console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${visibility} | Schedule: ${publishAt || 'N/A'}`);
+                console.log(`[Automation] Queuing for ${activeChannel.channelTitle} (${platform}) | Visibility: ${preCalculatedVisibility} | Schedule: ${preCalculatedPublishAt || 'N/A'}`);
 
                 jobStatus[sessionId] = { status: 'queued', message: 'Automated video prepared.' };
                 videoQueue.push({
@@ -1593,8 +1597,8 @@ router.post('/start-automation', async (req, res) => {
                     title: videoTitle,
                     description: videoDescription,
                     tags: videoTags,
-                    visibility,
-                    publishAt,
+                    visibility: preCalculatedVisibility,
+                    publishAt: preCalculatedPublishAt,
                     channelId: activeChannel.channelId,
                     platform,
                     plan: 'free',
