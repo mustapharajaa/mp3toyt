@@ -1403,6 +1403,10 @@ router.post('/start-automation', async (req, res) => {
         let activeUserCount;
         let allChannels = [];
 
+        // Declare scheduling variables before the lock so they're accessible after
+        let visibility = 'public';
+        let publishAt = null;
+
         try {
             if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
                 stats = await fs.readJson(AUTOMATION_STATS_PATH);
@@ -1449,8 +1453,7 @@ router.post('/start-automation', async (req, res) => {
 
             // --- SYNCHRONOUS SCHEDULING CALCULATION (to prevent race conditions) ---
             const cycleIndex = activeUserCount % 6;
-            let visibility = 'public';
-            let publishAt = null;
+            // visibility and publishAt are already declared before the lock
 
             console.log(`[Automation] [User: ${username}] Scheduling for count: ${activeUserCount} (Cycle Index: ${cycleIndex}/5)`);
 
