@@ -46,34 +46,23 @@ export function isAuthenticated(req, res, next) {
  * Middleware to check if user is admin
  */
 export async function isAdmin(req, res, next) {
-    console.log('[isAdmin Debug] Checking user:', req.session?.userId, 'Role in session:', req.session?.role);
-
     if (req.session && req.session.userId) {
         // First check session
-        if (req.session.role === 'admin') {
-            console.log('[isAdmin Debug] Access granted via session role');
-            return next();
-        }
+        if (req.session.role === 'admin') return next();
 
         // Fallback: load fresh data from file in case it was changed manually
         try {
             const users = await loadUsers();
             const user = users.find(u => u.id === req.session.userId);
-            console.log('[isAdmin Debug] Lookup in file for', user?.username, '- Role in file:', user?.role);
 
             if (user && user.role === 'admin') {
-                console.log('[isAdmin Debug] Access granted via file lookup. Syncing session.');
                 req.session.role = 'admin'; // Sync it
                 return next();
             }
         } catch (error) {
-            console.error('[isAdmin Debug] Error in lookup:', error);
+            // Silently fail fallback
         }
-    } else {
-        console.log('[isAdmin Debug] No session or userId found in request');
     }
-
-    console.log('[isAdmin Debug] Access DENIED (403)');
     res.status(403).json({ success: false, message: 'Forbidden: Admins only' });
 }
 
