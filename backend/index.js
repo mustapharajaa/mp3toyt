@@ -1223,13 +1223,8 @@ async function processVideoQueue() {
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
             console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
             try {
-                if (isBundle && bundleInstanceId) {
-                    await bundleApi.disconnectPlatform(bundleInstanceId, platform).catch(e => console.warn('[Automation Error] Bundle disconnect warning:', e.message));
-                }
                 await mp3toytChannels.deleteChannel(channelId, username);
-                if (!isBundle) {
-                    await deleteToken(channelId);
-                }
+                await deleteToken(channelId);
             } catch (delErr) {
                 console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
             }
