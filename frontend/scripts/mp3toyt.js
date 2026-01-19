@@ -1157,6 +1157,60 @@ document.addEventListener('DOMContentLoaded', () => {
     const updatePlanUsernameInput = document.getElementById('update-plan-username');
     const updatePlanSelect = document.getElementById('update-plan-select');
 
+    // --- Analytics ---
+    const analyticsModal = document.getElementById('analyticsModal');
+    const analyticsBtn = document.getElementById('analytics-btn');
+    const closeAnalyticsBtn = document.getElementById('close-analytics-modal');
+    const statsTotalVisitors = document.getElementById('stats-total-visitors');
+    const statsUniqueVisitors = document.getElementById('stats-unique-visitors');
+    const statsCountriesBody = document.getElementById('stats-countries-body');
+    const statsIpsBody = document.getElementById('stats-ips-body');
+
+    const openAnalyticsModal = async () => {
+        try {
+            const res = await fetch('/api/visitor-stats');
+            if (!res.ok) throw new Error('Failed to fetch stats');
+            const data = await res.json();
+
+            if (data.success && data.stats) {
+                const s = data.stats;
+                statsTotalVisitors.textContent = s.totalVisitors || 0;
+                statsUniqueVisitors.textContent = s.uniqueVisitors || 0;
+
+                // Render Countries
+                statsCountriesBody.innerHTML = Object.entries(s.visitorsPerCountry || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([country, count]) => `
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: black;">${country}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600; color: black;">${count}</td>
+                        </tr>
+                    `).join('') || '<tr><td colspan="2" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
+
+                // Render IPs (Simplified list)
+                statsIpsBody.innerHTML = Object.entries(s.ipAddresses || {})
+                    .sort((a, b) => b[1].hits - a[1].hits)
+                    .slice(0, 50) // Show top 50
+                    .map(([ip, details]) => `
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; color: black;">${ip}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: black;">${details.country}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; color: black;">${details.hits}</td>
+                        </tr>
+                    `).join('') || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
+
+                analyticsModal.style.display = 'block';
+            }
+        } catch (err) {
+            console.error('Analytics Error:', err);
+            showNotification('Failed to load analytics', 'error');
+        }
+    };
+
+    if (analyticsBtn) analyticsBtn.addEventListener('click', openAnalyticsModal);
+    if (closeAnalyticsBtn) closeAnalyticsBtn.addEventListener('click', () => { analyticsModal.style.display = 'none'; });
+
+
     if (manageUserPlansBtn) {
         manageUserPlansBtn.addEventListener('click', () => {
             managementDropdown.classList.remove('show');
@@ -1596,6 +1650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const upgradeBtn = document.getElementById('upgrade-btn');
                 const automationBtn = document.getElementById('automation-btn');
 
+                const analyticsBtnHeader = document.getElementById('analytics-btn');
                 const isAdmin = data.user.username === 'erraja';
                 localStorage.setItem('mp3toyt_isAdmin', isAdmin); // Sync for next refresh
 
@@ -1610,6 +1665,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (automationBtn) automationBtn.style.display = isAdmin ? 'flex' : 'none';
+                if (analyticsBtnHeader) analyticsBtnHeader.style.display = isAdmin ? 'flex' : 'none';
 
                 if (upgradeBtn) {
                     upgradeBtn.style.display = 'flex';

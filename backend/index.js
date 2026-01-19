@@ -41,6 +41,8 @@ if (!YT_DLP_PATH || !fs.existsSync(YT_DLP_PATH)) {
     console.error('👉 Please add YT_DLP_PATH=C:\\path\\to\\yt-dlp.exe to your .env file.');
     process.exit(1);
 }
+import { isAdmin } from './users.js';
+import { getStats } from './visitors.js';
 
 const router = express.Router();
 router.use(express.json());
@@ -2215,6 +2217,16 @@ router.post('/save-facebook-cookies', async (req, res) => {
     } catch (error) {
         console.error('Error saving FB cookies:', error);
         res.status(500).json({ success: false, message: 'Invalid JSON format or write error' });
+    }
+});
+
+router.get('/api/visitor-stats', isAdmin, async (req, res) => {
+    try {
+        const stats = await getStats();
+        res.json({ success: true, stats });
+    } catch (error) {
+        console.error('Error fetching visitor stats:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch visitor stats' });
     }
 });
 

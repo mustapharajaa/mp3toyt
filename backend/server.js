@@ -16,6 +16,27 @@ const PORT = process.env.PORT || 8000;
 // Trust Proxy for Cloudflare/SSL
 app.set('trust proxy', 1);
 
+import { trackVisitor } from './visitors.js';
+
+// Visitor Tracking Middleware
+app.use(async (req, res, next) => {
+    try {
+        let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        if (typeof ip === 'string' && ip.includes(',')) {
+            ip = ip.split(',')[0].trim();
+        }
+
+        // Only track if it's a page request
+        if (req.method === 'GET' && (req.path === '/app' || req.path === '/' || req.path === '/app/')) {
+            console.log(`[Visitor Debug] Request to ${req.path} from ${ip}`);
+            trackVisitor(ip);
+        }
+    } catch (e) {
+        console.error('Visitor track error:', e);
+    }
+    next();
+});
+
 // Middleware for parsing JSON and urlencoded data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
