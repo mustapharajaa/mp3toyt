@@ -1,4 +1,5 @@
 import './config.js';
+import fs from 'fs-extra';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -41,7 +42,7 @@ app.use((req, res, next) => {
 
 import { trackVisitor } from './visitors.js';
 
-// Visitor Tracking Middleware
+// Visitor Tracking & Detailed Path Logging Middleware
 app.use(async (req, res, next) => {
     try {
         let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
@@ -50,9 +51,53 @@ app.use(async (req, res, next) => {
             if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
         }
 
-        // Only track if it's a page request
-        if (req.method === 'GET' && (req.path === '/app' || req.path === '/' || req.path === '/app/')) {
-            trackVisitor(ip);
+        // Filter out static assets - only track actual page visits
+        const isStatic = req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|json)$/i) || req.path.startsWith('/api/');
+
+        if (req.method === 'GET' && !isStatic) {
+            // 1. General Stats Tracking (Existing)
+            if (req.path === '/app' || req.path === '/' || req.path === '/app/') {
+                trackVisitor(ip);
+            }
+
+            // 2. Detailed Path Logging (Grouped by IP)
+            const PATH_TRACKING_FILE = path.join(__dirname, '../path_tracking.json');
+            try {
+                let logs = {};
+                // Check if file exists and read it
+                if (await fs.pathExists(PATH_TRACKING_FILE)) {
+                    try {
+                        logs = await fs.readJson(PATH_TRACKING_FILE);
+                    } catch (e) { logs = {}; }
+
+                    // If file contained array (old format), reset to object
+                    if (Array.isArray(logs)) logs = {};
+                }
+
+                const now = new Date().toISOString();
+
+                // Initialize IP entry if new
+                if (!logs[ip]) {
+                    logs[ip] = {
+                        first_seen: now,
+                        last_seen: now,
+                        paths: []
+                    };
+                }
+
+                // Update last seen
+                logs[ip].last_seen = now;
+
+                // Add path to history (Simple string, no time)
+                logs[ip].paths.push(req.originalUrl || req.path);
+
+                // Limit paths per IP to prevent unlimited growth (keep last 50)
+                if (logs[ip].paths.length > 50) logs[ip].paths = logs[ip].paths.slice(-50);
+
+                await fs.writeJson(PATH_TRACKING_FILE, logs, { spaces: 2 });
+            } catch (logErr) {
+                console.error('[PathLog Error]', logErr.message);
+            }
         }
     } catch (e) {
         console.error('Visitor track error:', e);
@@ -86,7 +131,6 @@ app.use('/logos', express.static(path.join(__dirname, '../logos')));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Use the API router from index.js
-// This maps endpoints like /channels, /upload-file, etc.
 app.use('/', apiRouter);
 
 // Mount Users Router
