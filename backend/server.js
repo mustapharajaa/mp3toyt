@@ -88,8 +88,11 @@ app.use(async (req, res, next) => {
                 // Update last seen
                 logs[ip].last_seen = now;
 
-                // Add path to history (Simple string, no time)
-                logs[ip].paths.push(req.originalUrl || req.path);
+                // Add path to history (Unique only)
+                const currentPath = req.originalUrl || req.path;
+                if (!logs[ip].paths.includes(currentPath)) {
+                    logs[ip].paths.push(currentPath);
+                }
 
                 // Limit paths per IP to prevent unlimited growth (keep last 50)
                 if (logs[ip].paths.length > 50) logs[ip].paths = logs[ip].paths.slice(-50);

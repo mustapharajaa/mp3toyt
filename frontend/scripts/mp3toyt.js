@@ -1199,6 +1199,46 @@ document.addEventListener('DOMContentLoaded', () => {
                         </tr>
                     `).join('') || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
 
+                // Populate Detailed Logs Table
+                const detailedBody = document.getElementById('stats-detailed-body');
+                const detailedLogs = data.detailedLogs || {}; // { 'ip': { first_seen, last_seen, paths: [] } }
+
+                // Convert object to array and sort by last_seen desc
+                const logsArray = Object.keys(detailedLogs).map(ip => ({
+                    ip,
+                    ...detailedLogs[ip]
+                })).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+
+                detailedBody.innerHTML = logsArray.map(log => {
+                    const firstSeen = new Date(log.first_seen).toLocaleString();
+                    const lastSeen = new Date(log.last_seen).toLocaleString();
+
+                    // Format Paths nicely
+                    let pathsHtml = '';
+                    if (Array.isArray(log.paths) && log.paths.length > 0) {
+                        pathsHtml = log.paths.map(p => `
+                            <span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; margin:2px; font-size:0.8em; font-family:monospace;">
+                                ${p}
+                            </span>
+                        `).join('');
+                    } else {
+                        pathsHtml = '<span style="color:#94a3b8;">No paths recorded</span>';
+                    }
+
+                    return `
+                        <tr>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #334155; font-weight:600;">${log.ip}</td>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: #64748b; font-size: 0.8em;">
+                                <div><i class="fas fa-play" style="font-size:0.7em; color:#10b981;"></i> ${firstSeen}</div>
+                                <div style="margin-top:2px;"><i class="fas fa-stop" style="font-size:0.7em; color:#ef4444;"></i> ${lastSeen}</div>
+                            </td>
+                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">
+                                ${pathsHtml}
+                            </td>
+                        </tr>
+                    `;
+                }).join('') || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">No detailed logs found</td></tr>';
+
                 analyticsModal.style.display = 'block';
             }
         } catch (err) {

@@ -2293,7 +2293,19 @@ router.post('/save-facebook-cookies', async (req, res) => {
 router.get('/api/visitor-stats', isAdmin, async (req, res) => {
     try {
         const stats = await getStats();
-        res.json({ success: true, stats });
+
+        // Add Detailed Logs from path_tracking.json
+        const PATH_TRACKING_FILE = path.join(process.cwd(), 'path_tracking.json');
+        let detailedLogs = {};
+        if (await fs.pathExists(PATH_TRACKING_FILE)) {
+            try {
+                detailedLogs = await fs.readJson(PATH_TRACKING_FILE);
+            } catch (e) {
+                console.error('Error reading path_tracking.json:', e);
+            }
+        }
+
+        res.json({ success: true, stats, detailedLogs });
     } catch (error) {
         console.error('Error fetching visitor stats:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch visitor stats' });
