@@ -1465,7 +1465,8 @@ router.post('/start-automation', async (req, res) => {
 
             // Re-fetch channels inside lock to get latest status
             if (username && username !== 'guest') {
-                allChannels = (await mp3toytChannels.getChannelsForUser(username)).filter(c => c.status !== 'exhausted');
+                allChannels = (await mp3toytChannels.getChannelsForUser(username))
+                    .filter(c => c.status !== 'exhausted' && c.platform !== 'facebook');
             }
 
             const savedCount = stats[username] || 0;
@@ -1670,6 +1671,14 @@ router.post('/start-automation', async (req, res) => {
                 // Decrement pending counter if the background job fails
                 if (username && automationPendingCounters[username] > 0) {
                     automationPendingCounters[username]--;
+                }
+
+                // CLEANUP: Immediately remove the failed session directory to save space
+                try {
+                    console.log(`[Automation Cleanup] Deleting failed session: ${sessionDir}`);
+                    await fs.remove(sessionDir);
+                } catch (cleanupErr) {
+                    console.error('[Automation Cleanup] Failed to remove dir:', cleanupErr.message);
                 }
             }
         })();
