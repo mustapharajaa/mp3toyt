@@ -52,7 +52,9 @@ app.use(async (req, res, next) => {
         }
 
         // Filter out static assets - only track actual page visits
-        const isStatic = req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|json)$/i) || req.path.startsWith('/api/');
+        const isStatic = req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|json)$/i) ||
+            req.path.startsWith('/api/') ||
+            req.path.startsWith('/download-audio');
 
         if (req.method === 'GET' && !isStatic) {
             // 1. General Stats Tracking (Existing)

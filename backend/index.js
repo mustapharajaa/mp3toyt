@@ -983,14 +983,41 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
             }
         }
 
+        // Set a timeout for the FFmpeg process (e.g., 5 minutes)
+        const ffmpegTimeout = setTimeout(() => {
+            console.error('[FFmpeg] Step 1 Timeout: Process took longer than 5 minutes.');
+            if (command) {
+                try {
+                    command.kill(); // Kill the ffmpeg process
+                } catch (e) {
+                    console.error('[FFmpeg] Error killing process:', e.message);
+                }
+            }
+            reject(new Error('FFmpeg Step 1 timed out (5 minutes).'));
+        }, 5 * 60 * 1000);
+
         command
             .videoCodec(process.env.VIDEO_CODEC || 'libx264')
             .output(loopVideoPath)
             .on('start', (cmd) => console.log('[FFmpeg] Step 1 Command:', cmd))
-            .on('end', resolve)
+            .on('progress', (progress) => {
+                // Log progress occasionally to verify it's alive
+                if (progress.percent && Math.floor(progress.percent) % 25 === 0) {
+                    console.log(`[FFmpeg] Step 1 Progress: ${Math.floor(progress.percent)}%`);
+                }
+            })
+            .on('end', () => {
+                clearTimeout(ffmpegTimeout);
+                console.log('[FFmpeg] Step 1 Complete.');
+                resolve();
+            })
             .on('error', (err, stdout, stderr) => {
+                clearTimeout(ffmpegTimeout);
                 console.error('[FFmpeg] Step 1 Error:', err.message);
-                console.error('[FFmpeg] Step 1 stderr:', stderr);
+                // Only log stderr if it's not a kill signal
+                if (!err.message.includes('SIGKILL') && !err.message.includes('SIGTERM')) {
+                    console.error('[FFmpeg] Step 1 stderr:', stderr);
+                }
                 reject(new Error('Base loop creation failed: ' + err.message));
             })
             .run();
@@ -1024,13 +1051,42 @@ async function createVideoWithFfmpeg(sessionId, audioPathInput, imagePath, video
 
                 console.log('[FFmpeg] Assembly Command:', command._getArguments().join(' '));
 
+                // Set a timeout for the assembly process (e.g., 5 minutes)
+                const assemblyTimeout = setTimeout(() => {
+                    console.error('[FFmpeg] Assembly Timeout: Process took longer than 5 minutes.');
+                    if (command) {
+                        try {
+                            command.kill();
+                        } catch (e) {
+                            console.error('[FFmpeg] Error killing assembly process:', e.message);
+                        }
+                    }
+                    reject(new Error('FFmpeg Assembly timed out (5 minutes).'));
+                }, 5 * 60 * 1000);
+
                 command
+                    .on('progress', (progress) => {
+                        // Log assembly progress roughly every 25% or if specific time markers are provided
+                        if (progress.percent && Math.floor(progress.percent) % 25 === 0) {
+                            console.log(`[FFmpeg] Assembly Progress: ${Math.floor(progress.percent)}%`);
+                        } else if (progress.timemark) {
+                            // Some codecs don't give percent, so we log timemark occasionally purely for aliveness
+                            // (Log roughly every 30 seconds of video time if parsing was easy, here we just log on stream)
+                            // To avoid spam, we rely on the end event, but let's log only 100% or significant shifts if needed.
+                            // For copy mode, progress often jumps instantly.
+                        }
+                    })
                     .on('end', () => {
+                        clearTimeout(assemblyTimeout);
                         console.log('[FFmpeg] Final assembly finished.');
                         resolve();
                     })
                     .on('error', (err, stdout, stderr) => {
+                        clearTimeout(assemblyTimeout);
                         console.error('[FFmpeg] Assembly Error:', err.message);
+                        if (!err.message.includes('SIGKILL') && !err.message.includes('SIGTERM')) {
+                            console.error('[FFmpeg] Assembly stderr:', stderr);
+                        }
                         reject(err);
                     })
                     .run();
