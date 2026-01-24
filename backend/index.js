@@ -1371,7 +1371,9 @@ async function processVideoQueue() {
         }, 5000); // 5-second delay
 
         isProcessingVideo = false;
-        processVideoQueue();
+        if (jobStatus[sessionId]?.status !== 'waiting') {
+            processVideoQueue();
+        }
     }
 }
 
