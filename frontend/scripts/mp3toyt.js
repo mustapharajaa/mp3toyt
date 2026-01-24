@@ -1571,21 +1571,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cancelAutoBtn) cancelAutoBtn.addEventListener('click', closeAuto);
 
     if (startAutoBtn) {
-        startAutoBtn.addEventListener('click', async () => {
-            const links = autoAudioLinks.value.split('\n').map(l => l.trim()).filter(l => l);
-            const thumbUrl = autoImageLink.value.trim();
-            const applyDelay = document.getElementById('auto-apply-delay')?.checked ?? true;
-
-            console.log(`[Automation UI] Process Links clicked. Links: ${links.length}, applyDelay toggle is: ${applyDelay}`);
-            if (links.length === 0) {
-                showNotification('Please enter at least one audio link.', 'error');
-                return;
-            }
+        startAutoBtn.onclick = async () => {
+            console.log('[Automation UI] "Process Links" button CLICKED.');
 
             try {
+                const links = autoAudioLinks?.value?.split('\n').map(l => l.trim()).filter(l => l) || [];
+                const thumbUrl = autoImageLink?.value?.trim() || "";
+                const applyDelay = document.getElementById('auto-apply-delay')?.checked ?? true;
+
+                console.log(`[Automation UI] Preparing to send request.`, { linksCount: links.length, applyDelay });
+
+                if (links.length === 0) {
+                    console.warn('[Automation UI] Validation failed: No links provided.');
+                    showNotification('Please enter at least one audio link.', 'error');
+                    return;
+                }
+
                 startAutoBtn.disabled = true;
                 startAutoBtn.textContent = 'Queueing...';
 
+                console.log('[Automation UI] Fetching /start-automation...');
                 const res = await fetch('/start-automation', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1593,31 +1598,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const result = await res.json();
+                console.log('[Automation UI] API Response:', result);
+
                 if (result.success) {
                     showNotification(`Success! Video queued for ${links.length} song(s).`, 'success');
-                    autoAudioLinks.value = ''; // Clear links for next batch
-                    autoImageLink.value = ''; // Clear thumbnail link for next batch
+                    if (autoAudioLinks) autoAudioLinks.value = '';
+                    if (autoImageLink) autoImageLink.value = '';
 
-                    // Show success icon in popup
                     const successIcon = document.getElementById('auto-success-icon');
                     if (successIcon) {
                         successIcon.style.display = 'inline-block';
-                        setTimeout(() => {
-                            if (successIcon) successIcon.style.display = 'none';
-                        }, 4000);
+                        setTimeout(() => { if (successIcon) successIcon.style.display = 'none'; }, 4000);
                     }
-                    // Keep the modal open as requested
                 } else {
+                    console.error('[Automation UI] Server reported error:', result.error);
                     showNotification(result.error || 'Failed to start automation', 'error');
                 }
             } catch (err) {
-                console.error('Automation error:', err);
+                console.error('[Automation UI] CRITICAL FETCH ERROR:', err);
                 showNotification('Network error starting automation', 'error');
             } finally {
                 startAutoBtn.disabled = false;
                 startAutoBtn.textContent = 'Process Links';
+                console.log('[Automation UI] Request lifecycle complete.');
             }
-        });
+        };
     }
 
     // --- Facebook Cookies Management (Puppeteer) ---

@@ -1101,9 +1101,13 @@
                 </div>
             </div>
 
-            <div class="form-group" style="margin-top: 15px; display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="document.getElementById('auto-apply-delay').click()">
-                <input type="checkbox" id="auto-apply-delay" checked style="width: 18px; height: 18px; cursor: pointer;">
-                <label for="auto-apply-delay" style="margin-bottom: 0; cursor: pointer; font-weight: 500; font-size: 0.9rem; color: #1e293b;">Apply 7-9 Days Initial Delay</label>
+            <div class="form-group" style="margin-top: 15px; display: flex; align-items: center; gap: 12px;">
+                <input type="checkbox" id="auto-apply-delay" checked
+                    style="accent-color: #1877f2; width: 20px; height: 20px; cursor: pointer;">
+                <label for="auto-apply-delay"
+                    style="margin-bottom: 0; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: #1e293b; user-select: none;">
+                    Apply 7-9 Days Initial Delay
+                </label>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -1322,14 +1326,21 @@
 
             <!-- Detailed Logs Section -->
             <div style="margin-top: 30px;">
-                <h3 style="font-size: 1rem; margin-bottom: 10px; color: #475569;">Detailed Visitor Logs (Paths Visited)</h3>
+                <h3 style="font-size: 1rem; margin-bottom: 10px; color: #475569;">Detailed Visitor Logs (Paths Visited)
+                </h3>
                 <div style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
                         <thead style="background: #f1f5f9; position: sticky; top: 0;">
                             <tr>
-                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black; width: 140px;">IP Address</th>
-                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black; width: 160px;">Time Seen (First / Last)</th>
-                                <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black;">Paths Visited</th>
+                                <th
+                                    style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black; width: 140px;">
+                                    IP Address</th>
+                                <th
+                                    style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black; width: 160px;">
+                                    Time Seen (First / Last)</th>
+                                <th
+                                    style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; color: black;">
+                                    Paths Visited</th>
                             </tr>
                         </thead>
                         <tbody id="stats-detailed-body">
