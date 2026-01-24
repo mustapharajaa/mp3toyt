@@ -1535,7 +1535,7 @@ router.post('/start-automation', async (req, res) => {
                 console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from cycle start: ${publishAt}`);
             } else {
                 // Video 1: Random delay and set the cycle start
-                const randomDays = Math.floor(Math.random() * 3); // 0, 1, or 2 days
+                const randomDays = Math.floor(Math.random() * 3) + 7; // 7, 8, or 9 days
                 const cycleStartDate = new Date();
                 cycleStartDate.setDate(cycleStartDate.getDate() + randomDays);
 
