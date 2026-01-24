@@ -1147,10 +1147,74 @@ async function processVideoQueue() {
             }
         }
 
-        platform = channelMeta.platform || 'youtube';
-        isBundle = !!channelMeta.socialAccountId;
-        bundleInstanceId = channelMeta.bundleInstanceId;
+        const platform = channelMeta.platform || 'youtube';
+        const isBundle = !!channelMeta.socialAccountId;
+        const bundleInstanceId = channelMeta.bundleInstanceId;
         const channelIdForUpload = actualChannelId; // Use the resolved ID
+
+        let finalVisibility = visibility;
+        let finalPublishAt = publishAt;
+        let finalDeleteOnSuccess = deleteChannelOnSuccess;
+
+        // --- CYCLE SYNC LOGIC ---
+        // If we hot-swapped (actualChannelId !== channelId), we MUST re-calculate the cycle state
+        // to ensure this video respects the new channel's starting point (e.g. Video 1 of New Channel).
+        if (actualChannelId !== channelId) {
+            console.log(`[Queue] Resyncing cycle for ${username} on new channel ${actualChannelId}...`);
+            try {
+                let stats = {};
+                if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                    stats = await fs.readJson(AUTOMATION_STATS_PATH);
+                }
+
+                // Get current cycle position for the user (Reset to 0 if rotation just happened)
+                const currentCount = stats[username] || 0;
+                const cycleIndex = currentCount % 6;
+                const isVideoOne = (cycleIndex === 0);
+
+                finalDeleteOnSuccess = (currentCount + 1) % 6 === 0;
+
+                if (isVideoOne) {
+                    console.log(`[Queue] Resync: This is now VIDEO 1 of a new cycle.`);
+                    const randomDays = (job.applyDelay !== false) ? (Math.floor(Math.random() * 3) + 7) : (Math.floor(Math.random() * 3));
+                    const cycleStartDate = new Date();
+                    cycleStartDate.setDate(cycleStartDate.getDate() + randomDays);
+
+                    if (randomDays === 0) {
+                        finalVisibility = 'public';
+                        finalPublishAt = null;
+                        console.log(`[Queue] Resync: Immediate Public upload.`);
+                    } else {
+                        finalVisibility = 'private';
+                        const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                        const randomMin = Math.floor(Math.random() * 60);
+                        cycleStartDate.setHours(randomHour, randomMin, 0, 0);
+                        finalPublishAt = cycleStartDate.toISOString();
+                        console.log(`[Queue] Resync: Scheduled for ${randomDays} days from now: ${finalPublishAt}`);
+
+                        // Update the cycle start date in stats so subsequent queued videos can follow
+                        stats.current_cycle_start = cycleStartDate.toISOString();
+                        await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                    }
+                } else {
+                    console.log(`[Queue] Resync: This is Video ${cycleIndex + 1}/6 for current channel.`);
+                    finalVisibility = 'private';
+                    let cycleStartDate = stats.current_cycle_start ? new Date(stats.current_cycle_start) : new Date();
+
+                    const daysOffset = cycleIndex * 2;
+                    const publishDate = new Date(cycleStartDate.getTime());
+                    publishDate.setDate(publishDate.getDate() + daysOffset);
+
+                    const randomHour = Math.floor(Math.random() * (21 - 9 + 1)) + 9;
+                    const randomMin = Math.floor(Math.random() * 60);
+                    publishDate.setHours(randomHour, randomMin, 0, 0);
+                    finalPublishAt = publishDate.toISOString();
+                    console.log(`[Queue] Resync: Scheduled for ${daysOffset} days from cycle: ${finalPublishAt}`);
+                }
+            } catch (resyncErr) {
+                console.error(`[Queue] Resync failed, falling back to original schedule:`, resyncErr.message);
+            }
+        }
 
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
 
@@ -1195,11 +1259,11 @@ async function processVideoQueue() {
             const postText = `${title}\n\n${description || ''}`;
 
             if (platform === 'facebook') {
-                bundleApi.postToFacebook(bundleInstanceId, actualChannelId, mediaId, postText, publishAt)
+                bundleApi.postToFacebook(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt)
                     .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
                     .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
             } else {
-                bundleApi.postToYoutube(bundleInstanceId, actualChannelId, mediaId, postText, publishAt)
+                bundleApi.postToYoutube(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt)
                     .then(res => console.log(`[Queue] Background Bundle YouTube post result:`, JSON.stringify(res)))
                     .catch(err => console.error(`[Queue] Background Bundle YouTube post failed:`, err.message));
             }
@@ -1232,13 +1296,13 @@ async function processVideoQueue() {
         } else {
             // Direct YouTube API (Only for admin or specific claimed direct channels)
             console.log(`[Queue] Using direct YouTube API for user: ${username}`);
-            const privacyStatus = (visibility === 'schedule' || publishAt) ? 'private' : visibility;
+            const privacyStatus = (finalVisibility === 'schedule' || finalPublishAt) ? 'private' : finalVisibility;
             const videoMetadata = {
                 title,
                 description,
                 tags: Array.isArray(tags) ? tags : (tags ? tags.split(',').map(tag => tag.trim()) : []),
                 privacyStatus,
-                ...(publishAt && { publishAt })
+                ...(finalPublishAt && { publishAt: finalPublishAt })
             };
 
             uploadResult = await uploadVideo(actualChannelId, outputVideoPath, videoMetadata, (percent) => {
@@ -1269,14 +1333,14 @@ async function processVideoQueue() {
             creationTime,
             uploadTime,
             platform,
-            publishAt
+            publishAt: finalPublishAt
         };
 
         // Note: Automation stats tracking removed for manual Facebook uploads.
         // Stats should only increment for actual scheduled automation posts.
 
         // --- Channel Deletion for Automation Cycle (6th Video) ---
-        if (deleteChannelOnSuccess) {
+        if (finalDeleteOnSuccess) {
             console.log(`[Automation] Cycle Complete (6/6). Deleting channel ${actualChannelId} to rotate.`);
             try {
                 // If it's a bundle channel, try to disconnect from Bundle first (optional but good hygiene)
@@ -1714,6 +1778,7 @@ router.post('/start-automation', async (req, res) => {
                     plan: 'free',
                     username,
                     deleteChannelOnSuccess: activeDeleteOnSuccess,
+                    applyDelay, // Save preference for potential restart on new channel
                     channelMeta: activeChannel
                 });
 
