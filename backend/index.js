@@ -1113,26 +1113,42 @@ async function processVideoQueue() {
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
     try {
-        // 1. Resolve channel metadata
-        let channelMeta = job.channelMeta;
-        if (!channelMeta) {
-            const userChannels = await mp3toytChannels.getChannelsForUser(username);
-            channelMeta = userChannels.find(c => c.channelId === channelId);
-        }
+        // 1. Resolve channel metadata & Perform Ghost Channel Protection
+        // If a channel was deleted (rotation) or disconnected while this job was waiting in the queue,
+        // we automatically "hot-swap" it to any available connected channel for the user.
+        let actualChannelId = channelId;
+        let channelMeta = null;
+
+        const userChannels = (await mp3toytChannels.getChannelsForUser(username))
+            .filter(c => c.isConnected !== false && c.status !== 'exhausted');
+
+        // Check if the originally assigned channel is still active
+        channelMeta = userChannels.find(c => c.channelId === actualChannelId);
 
         if (!channelMeta) {
-            throw new Error(`Channel ${channelId} not found for user ${username}.`);
+            console.log(`[Queue] Ghost Channel Detected: ${actualChannelId} is gone/disconnected.`);
+            // Hot-Swap to the first available valid channel
+            const fallbackChannel = userChannels.find(c => c.platform === (job.platform || 'youtube'));
+
+            if (fallbackChannel) {
+                console.log(`[Queue] Hot-Swapping session ${sessionId} to available channel: ${fallbackChannel.channelTitle} (${fallbackChannel.channelId})`);
+                actualChannelId = fallbackChannel.channelId;
+                channelMeta = fallbackChannel;
+            } else {
+                throw new Error(`Queue Failure: No connected channels available for ${username}. Can't process job.`);
+            }
         }
 
         const platform = channelMeta.platform || 'youtube';
         const isBundle = !!channelMeta.socialAccountId;
         const bundleInstanceId = channelMeta.bundleInstanceId;
+        const channelIdForUpload = actualChannelId; // Use the resolved ID
 
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
 
         // Mark activity as starting
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
+            await bundleApi.updateActivity(bundleInstanceId, actualChannelId, platform);
         }
 
         const creationStartTime = Date.now();
@@ -1141,7 +1157,7 @@ async function processVideoQueue() {
 
         // Update activity again before upload starts (prevents cleanup during long renders)
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
+            await bundleApi.updateActivity(bundleInstanceId, actualChannelId, platform);
         }
 
         // Log final video size
@@ -1171,11 +1187,11 @@ async function processVideoQueue() {
             const postText = `${title}\n\n${description || ''}`;
 
             if (platform === 'facebook') {
-                bundleApi.postToFacebook(bundleInstanceId, channelId, mediaId, postText, publishAt)
+                bundleApi.postToFacebook(bundleInstanceId, actualChannelId, mediaId, postText, publishAt)
                     .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
                     .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
             } else {
-                bundleApi.postToYoutube(bundleInstanceId, channelId, mediaId, postText, publishAt)
+                bundleApi.postToYoutube(bundleInstanceId, actualChannelId, mediaId, postText, publishAt)
                     .then(res => console.log(`[Queue] Background Bundle YouTube post result:`, JSON.stringify(res)))
                     .catch(err => console.error(`[Queue] Background Bundle YouTube post failed:`, err.message));
             }
@@ -1217,7 +1233,7 @@ async function processVideoQueue() {
                 ...(publishAt && { publishAt })
             };
 
-            uploadResult = await uploadVideo(channelId, outputVideoPath, videoMetadata, (percent) => {
+            uploadResult = await uploadVideo(actualChannelId, outputVideoPath, videoMetadata, (percent) => {
                 if (jobStatus[sessionId]) jobStatus[sessionId].message = `Uploading to YouTube... ${percent}%`;
             });
         }
@@ -1226,7 +1242,7 @@ async function processVideoQueue() {
 
         // Final activity update upon successful upload
         if (isBundle) {
-            await bundleApi.updateActivity(bundleInstanceId, channelId, platform);
+            await bundleApi.updateActivity(bundleInstanceId, actualChannelId, platform);
         }
 
         const uploadTime = Math.round((Date.now() - uploadStartTime) / 1000);
@@ -1253,7 +1269,7 @@ async function processVideoQueue() {
 
         // --- Channel Deletion for Automation Cycle (6th Video) ---
         if (deleteChannelOnSuccess) {
-            console.log(`[Automation] Cycle Complete (6/6). Deleting channel ${channelId} to rotate.`);
+            console.log(`[Automation] Cycle Complete (6/6). Deleting channel ${actualChannelId} to rotate.`);
             try {
                 // If it's a bundle channel, try to disconnect from Bundle first (optional but good hygiene)
                 if (isBundle && bundleInstanceId) {
@@ -1262,11 +1278,11 @@ async function processVideoQueue() {
                 }
 
                 // Delete from local DB and remove tokens
-                await mp3toytChannels.deleteChannel(channelId, username);
+                await mp3toytChannels.deleteChannel(actualChannelId, username);
                 if (!isBundle) {
-                    await deleteToken(channelId);
+                    await deleteToken(actualChannelId);
                 }
-                console.log(`[Automation] Channel ${channelId} deleted/rotated successfully.`);
+                console.log(`[Automation] Channel ${actualChannelId} deleted/rotated successfully.`);
             } catch (delErr) {
                 console.error(`[Automation] Failed to delete channel ${channelId} after cycle completion:`, delErr);
             }
@@ -1277,12 +1293,12 @@ async function processVideoQueue() {
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
-            console.log(`[Queue] Admin channel ${channelId} has hit its limit. Auto-deleting for clean system.`);
+            console.log(`[Queue] Admin channel ${actualChannelId} has hit its limit. Auto-deleting for clean system.`);
             try {
-                await mp3toytChannels.deleteChannel(channelId, username);
-                await deleteToken(channelId);
+                await mp3toytChannels.deleteChannel(actualChannelId, username);
+                await deleteToken(actualChannelId);
             } catch (delErr) {
-                console.error(`[Queue] Failed to auto-delete exhausted admin channel ${channelId}:`, delErr.message);
+                console.error(`[Queue] Failed to auto-delete exhausted admin channel ${actualChannelId}:`, delErr.message);
             }
         }
     } finally {
