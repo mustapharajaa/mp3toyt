@@ -1426,7 +1426,7 @@ router.post('/create-video', upload.none(), async (req, res) => {
 });
 
 router.post('/start-automation', async (req, res) => {
-    const { links, thumbUrl, __internalCall } = req.body;
+    const { links, thumbUrl, __internalCall, applyDelay } = req.body;
     let username = req.session && req.session.username ? req.session.username : 'guest';
     const userId = req.session && req.session.userId ? req.session.userId : null;
 
@@ -1535,7 +1535,12 @@ router.post('/start-automation', async (req, res) => {
                 console.log(`[Automation] [Mode: SCHEDULED] Scheduled for ${daysOffset} days from cycle start: ${publishAt}`);
             } else {
                 // Video 1: Random delay and set the cycle start
-                const randomDays = Math.floor(Math.random() * 3) + 7; // 7, 8, or 9 days
+                // If applyDelay is true (or undefined/first run), use 7-9 days. 
+                // If false (user unchecked), use 0-2 days.
+                const randomDays = (applyDelay !== false)
+                    ? (Math.floor(Math.random() * 3) + 7)
+                    : (Math.floor(Math.random() * 3));
+
                 const cycleStartDate = new Date();
                 cycleStartDate.setDate(cycleStartDate.getDate() + randomDays);
 

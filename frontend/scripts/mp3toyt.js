@@ -1557,6 +1557,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startAutoBtn.addEventListener('click', async () => {
             const links = autoAudioLinks.value.split('\n').map(l => l.trim()).filter(l => l);
             const thumbUrl = autoImageLink.value.trim();
+            const applyDelay = document.getElementById('auto-apply-delay')?.checked ?? true;
 
             if (links.length === 0) {
                 showNotification('Please enter at least one audio link.', 'error');
@@ -1570,7 +1571,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/start-automation', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ links, thumbUrl })
+                    body: JSON.stringify({ links, thumbUrl, applyDelay })
                 });
 
                 const result = await res.json();
