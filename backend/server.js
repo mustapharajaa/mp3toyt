@@ -25,7 +25,7 @@ app.use((req, res, next) => {
             const currentHost = req.get('host');
 
             // Skip redirect for localhost/dev to avoid breaking local testing
-            if (currentHost.includes('localhost') || currentHost.includes('127.0.0.1')) {
+            if (currentHost && (currentHost.includes('localhost') || currentHost.includes('127.0.0.1'))) {
                 return next();
             }
 
