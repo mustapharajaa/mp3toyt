@@ -1427,17 +1427,22 @@ router.post('/create-video', upload.none(), async (req, res) => {
 
 router.post('/start-automation', async (req, res) => {
     const { links, thumbUrl, __internalCall, applyDelay } = req.body;
+    console.log(`[Automation API] Received request. Links: ${links?.length}, Internal: ${!!__internalCall}, applyDelay: ${applyDelay}`);
+
     let username = req.session && req.session.username ? req.session.username : 'guest';
     const userId = req.session && req.session.userId ? req.session.userId : null;
+
+    console.log(`[Automation API] User identified as: ${username} (ID: ${userId})`);
 
     // Internal Bypass for Pending Queue Processor
     if (__internalCall && req.headers['x-internal-user']) {
         username = req.headers['x-internal-user'];
+        console.log(`[Automation API] Internal bypass detected. Acting as user: ${username}`);
     }
 
     // Automation is restricted to erraja only
     if (username !== 'erraja') {
-        console.warn(`[Automation Security] Non-admin user ${username} tried to start automation.`);
+        console.warn(`[Automation Security] BLOCKED: Non-admin user ${username} tried to start automation.`);
         return res.status(403).json({ success: false, error: 'Automation is restricted to administrative accounts.' });
     }
 
@@ -1446,8 +1451,10 @@ router.post('/start-automation', async (req, res) => {
     }
 
     try {
+        console.log(`[Automation API] Attempting to acquire lock and select channel...`);
         // 2. Determine Channel (Atomic Selection with Lock)
         await acquireAutomationLock();
+        console.log(`[Automation API] Lock acquired.`);
         let stats = {};
         let activeChannel;
         let activeDeleteOnSuccess;

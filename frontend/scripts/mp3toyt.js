@@ -1547,18 +1547,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // Persistence: Load saved delay preference
     if (autoApplyDelayToggle) {
         const savedDelayPref = localStorage.getItem('mp3toyt_apply_delay');
+        console.log(`[Automation UI] Loading saved delay preference: ${savedDelayPref}`);
         if (savedDelayPref !== null) {
             autoApplyDelayToggle.checked = savedDelayPref === 'true';
         }
 
         // Persistence: Save delay preference on change
         autoApplyDelayToggle.addEventListener('change', () => {
+            console.log(`[Automation UI] Delay toggle changed to: ${autoApplyDelayToggle.checked}`);
             localStorage.setItem('mp3toyt_apply_delay', autoApplyDelayToggle.checked);
         });
     }
 
     if (automationBtn) {
         automationBtn.addEventListener('click', () => {
+            console.log('[Automation UI] Opening automation modal');
             automationModal.style.display = 'flex';
         });
     }
@@ -1573,6 +1576,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const thumbUrl = autoImageLink.value.trim();
             const applyDelay = document.getElementById('auto-apply-delay')?.checked ?? true;
 
+            console.log(`[Automation UI] Process Links clicked. Links: ${links.length}, applyDelay toggle is: ${applyDelay}`);
             if (links.length === 0) {
                 showNotification('Please enter at least one audio link.', 'error');
                 return;
