@@ -736,7 +736,7 @@ const VIDEOS_DIR = UPLOADS_DIR;
 // fs.ensureDirSync(TEMP_BASE_DIR); // Moved up
 
 // --- Job Queue for Video Processing ---
-const videoQueue = [];
+let videoQueue = [];
 const jobStatus = {}; // Store job status by sessionId
 let isProcessingVideo = false;
 
@@ -1138,7 +1138,12 @@ async function processVideoQueue() {
                 actualChannelId = fallbackChannel.channelId;
                 channelMeta = fallbackChannel;
             } else {
-                throw new Error(`Queue Failure: No connected channels available for ${username}. Can't process job.`);
+                console.log(`[Queue] No valid channels available for ${username}. Job ${sessionId} is WAITING.`);
+                videoQueue.unshift(job);
+                jobStatus[sessionId] = { status: 'waiting', message: 'Waiting for a connected channel...' };
+
+                isProcessingVideo = false; // Release the loop
+                return; // EXIT WITHOUT RESTARTING THE LOOP or calling finally
             }
         }
 
@@ -1307,16 +1312,15 @@ async function processVideoQueue() {
                     .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
 
                 if (remaining.length === 0) {
-                    console.error(`[Queue] CRITICAL: All channels for ${username} are exhausted. HALTING QUEUE for this user.`);
+                    console.error(`[Queue] All channels for ${username} are exhausted. PAUSING QUEUE for this user.`);
                     // We don't want to process the rest of the queue if there's no channel to use.
-                    // This prevents wasting server CPU on videos that will definitely fail.
-                    const beforeCount = videoQueue.length;
-                    videoQueue = videoQueue.filter(q => q.username !== username);
-                    const removedCount = beforeCount - videoQueue.length;
-                    console.log(`[Queue] Removed ${removedCount} orphaned jobs from queue for ${username}.`);
+                    // Instead of failing, we'll unshift the current job back to the front of the queue
+                    // and stop the processing loop until a new channel is connected.
+                    videoQueue.unshift(job);
+                    jobStatus[sessionId] = { status: 'waiting', message: 'Waiting for channel quota reset or new channel...' };
 
-                    // Update statuses of removed jobs so user sees they were cancelled
-                    // This is handled by videoQueue filter, but we might want a global flag or to notify specifically.
+                    isProcessingVideo = false; // Release the loop
+                    return; // EXIT WITHOUT RESTARTING THE LOOP
                 }
             } catch (delErr) {
                 console.error(`[Queue] Failed to handle exhausted admin channel ${actualChannelId}:`, delErr.message);
@@ -2120,6 +2124,9 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
 
             // Trigger Pending Queue
             processPendingAutomation(username).catch(e => console.error('[Pending Trigger Error]', e.message));
+
+            // Kickstart the Video Queue (in case it was waiting for a channel)
+            processVideoQueue();
 
             res.send(`
                 <html>
