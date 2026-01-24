@@ -1112,15 +1112,18 @@ async function processVideoQueue() {
     console.log(`[Queue] Processing job: sessionId=${sessionId}, platform=${job.platform}, publishAt=${publishAt}`);
     const outputVideoPath = path.join(VIDEOS_DIR, `${sessionId}_${Date.now()}.mp4`);
 
+    let actualChannelId = channelId;
+    let channelMeta = null;
+    let platform = 'youtube';
+    let isBundle = false;
+    let bundleInstanceId = null;
+
     try {
         // 1. Resolve channel metadata & Perform Ghost Channel Protection
         // If a channel was deleted (rotation) or disconnected while this job was waiting in the queue,
         // we automatically "hot-swap" it to any available connected channel for the user.
-        let actualChannelId = channelId;
-        let channelMeta = null;
-
         const userChannels = (await mp3toytChannels.getChannelsForUser(username))
-            .filter(c => c.isConnected !== false && c.status !== 'exhausted');
+            .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
 
         // Check if the originally assigned channel is still active
         channelMeta = userChannels.find(c => c.channelId === actualChannelId);
@@ -1139,9 +1142,9 @@ async function processVideoQueue() {
             }
         }
 
-        const platform = channelMeta.platform || 'youtube';
-        const isBundle = !!channelMeta.socialAccountId;
-        const bundleInstanceId = channelMeta.bundleInstanceId;
+        platform = channelMeta.platform || 'youtube';
+        isBundle = !!channelMeta.socialAccountId;
+        bundleInstanceId = channelMeta.bundleInstanceId;
         const channelIdForUpload = actualChannelId; // Use the resolved ID
 
         jobStatus[sessionId] = { status: 'processing', message: 'Creating video file...', platform };
@@ -1297,8 +1300,26 @@ async function processVideoQueue() {
             try {
                 await mp3toytChannels.deleteChannel(actualChannelId, username);
                 await deleteToken(actualChannelId);
+
+                // --- QUEUE HALT LOGIC ---
+                // After deleting the exhausted channel, check if any other YouTube channels are left
+                const remaining = (await mp3toytChannels.getChannelsForUser(username))
+                    .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
+
+                if (remaining.length === 0) {
+                    console.error(`[Queue] CRITICAL: All channels for ${username} are exhausted. HALTING QUEUE for this user.`);
+                    // We don't want to process the rest of the queue if there's no channel to use.
+                    // This prevents wasting server CPU on videos that will definitely fail.
+                    const beforeCount = videoQueue.length;
+                    videoQueue = videoQueue.filter(q => q.username !== username);
+                    const removedCount = beforeCount - videoQueue.length;
+                    console.log(`[Queue] Removed ${removedCount} orphaned jobs from queue for ${username}.`);
+
+                    // Update statuses of removed jobs so user sees they were cancelled
+                    // This is handled by videoQueue filter, but we might want a global flag or to notify specifically.
+                }
             } catch (delErr) {
-                console.error(`[Queue] Failed to auto-delete exhausted admin channel ${actualChannelId}:`, delErr.message);
+                console.error(`[Queue] Failed to handle exhausted admin channel ${actualChannelId}:`, delErr.message);
             }
         }
     } finally {
