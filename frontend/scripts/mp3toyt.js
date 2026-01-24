@@ -1542,6 +1542,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const startAutoBtn = document.getElementById('start-auto-btn');
     const autoAudioLinks = document.getElementById('auto-audio-links');
     const autoImageLink = document.getElementById('auto-image-link');
+    const autoApplyDelayToggle = document.getElementById('auto-apply-delay');
+
+    // Persistence: Load saved delay preference
+    if (autoApplyDelayToggle) {
+        const savedDelayPref = localStorage.getItem('mp3toyt_apply_delay');
+        if (savedDelayPref !== null) {
+            autoApplyDelayToggle.checked = savedDelayPref === 'true';
+        }
+
+        // Persistence: Save delay preference on change
+        autoApplyDelayToggle.addEventListener('change', () => {
+            localStorage.setItem('mp3toyt_apply_delay', autoApplyDelayToggle.checked);
+        });
+    }
 
     if (automationBtn) {
         automationBtn.addEventListener('click', () => {
