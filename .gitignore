@@ -5,6 +5,7 @@ facebook_credentials.json
 facebook_tokens.json
 tokens.json
 uploads/
+!frontend/wp-content/uploads/
 temp/
 channels.json
 package-lock.json
