@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LIVEENITY</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .bg-wavy {
+            background-color: #050505;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10 Q 25 20 50 10 T 100 10' stroke='%23111111' fill='none' stroke-width='2'/%3E%3C/svg%3E");
+            background-repeat: repeat;
+        }
+
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+
+        * {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .login-card {
+            background: #121212;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        input:focus {
+            border-color: rgba(255, 255, 255, 0.3);
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-wavy text-white min-h-screen flex items-center justify-center p-4">
+
+    <div class="login-card w-full max-w-md p-8 md:p-10 rounded-[36px] relative">
+        <div class="absolute -top-7 left-1/2 -track-x-1/2 -translate-x-1/2">
+            <div
+                class="w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-xl border bg-[#1a1a1a] border-white/10 text-blue-400">
+                👤
+            </div>
+        </div>
+
+        <div class="text-center mb-8 mt-4">
+            <h1 class="text-3xl font-bold mb-2">Welcome Back</h1>
+            <p class="text-gray-400">Login to your account</p>
+        </div>
+
+        <div id="error-message"
+            class="hidden bg-red-900/40 border border-red-500/50 text-red-200 p-4 rounded-xl mb-6 text-sm text-center">
+            Invalid username or password
+        </div>
+
+        <form onsubmit="handleLogin(event)" class="space-y-6">
+            <div>
+                <label class="block text-gray-400 text-sm font-medium mb-2" for="username">Username</label>
+                <input type="text" id="username" required
+                    class="w-full bg-[#1a1a1a] border border-white/5 rounded-xl px-5 py-3.5 text-white placeholder-gray-600 transition-all">
+            </div>
+            <div>
+                <label class="block text-gray-400 text-sm font-medium mb-2" for="password">Password</label>
+                <input type="password" id="password" required
+                    class="w-full bg-[#1a1a1a] border border-white/5 rounded-xl px-5 py-3.5 text-white placeholder-gray-600 transition-all">
+            </div>
+
+            <button type="submit" id="login-btn"
+                class="w-full bg-white text-black font-bold py-4 px-6 rounded-full text-lg transition-all active:scale-[0.98] hover:bg-gray-200 mt-4">
+                Login
+            </button>
+        </form>
+
+        <div class="mt-8 text-center text-gray-500 text-sm">
+            Don't have an account? <a href="/contact/" class="text-blue-400 hover:text-blue-300 font-medium">Contact
+                Support</a>
+        </div>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorEl = document.getElementById('error-message');
+            const btn = document.getElementById('login-btn');
+
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+            errorEl.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    // Redirect full parent page
+                    window.parent.location.href = '/app';
+                } else {
+                    errorEl.textContent = data.message || 'Invalid username or password';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorEl.textContent = 'An error occurred. Please try again.';
+                errorEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Login';
+            }
+        }
+    </script>
+</body>
+
+</html>
