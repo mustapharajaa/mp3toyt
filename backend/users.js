@@ -177,7 +177,7 @@ router.get('/auth/me', async (req, res) => {
 // --- User Management Endpoints (Admin Only) ---
 
 // List Users
-router.get('/users', isAuthenticated, isAdmin, async (req, res) => {
+router.post('/users', isAuthenticated, isAdmin, async (req, res) => {
     const users = await loadUsers();
     // Return users without passwords
     const safeUsers = users.map(u => ({

@@ -966,7 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (manageCookiesBtn) {
         manageCookiesBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/get-cookies');
+                const res = await fetch('/get-cookies', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     cookiesEditor.value = data.cookies || '';
@@ -1072,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (manageTokensBtn) {
         manageTokensBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/get-tokens');
+                const res = await fetch('/get-tokens', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     tokensEditor.value = data.tokens || '[]';
@@ -1129,7 +1129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (manageChannelsJSONBtn) {
         manageChannelsJSONBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/get-channels-json');
+                const res = await fetch('/get-channels-json', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
                     channelsJSONEditor.value = data.channels || '{"channels":[]}';
@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openAnalyticsModal = async () => {
         try {
-            const res = await fetch('/api/visitor-stats');
+            const res = await fetch('/api/visitor-stats', { method: 'POST' });
             if (!res.ok) throw new Error('Failed to fetch stats');
             const data = await res.json();
 
@@ -1277,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 // 1. Get user ID by username
-                const usersRes = await fetch('/api/users');
+                const usersRes = await fetch('/api/users', { method: 'POST' });
                 const users = await usersRes.json();
 
                 if (!usersRes.ok || !Array.isArray(users)) {
@@ -1356,7 +1356,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openFacebookCredentials = async () => {
         try {
-            const res = await fetch('/get-facebook-credentials');
+            const res = await fetch('/get-facebook-credentials', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 fbCredsEditor.value = data.credentials;
@@ -1422,7 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openYouTubeCredentials = async () => {
         try {
-            const res = await fetch('/get-credentials');
+            const res = await fetch('/get-credentials', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 credentialsEditor.value = data.credentials;

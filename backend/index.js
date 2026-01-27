@@ -41,7 +41,7 @@ if (!YT_DLP_PATH || !fs.existsSync(YT_DLP_PATH)) {
     console.error('👉 Please add YT_DLP_PATH=C:\\path\\to\\yt-dlp.exe to your .env file.');
     process.exit(1);
 }
-import { isAdmin } from './users.js';
+import { isAdmin, isAuthenticated } from './users.js';
 import { getStats } from './visitors.js';
 
 const router = express.Router();
@@ -225,7 +225,7 @@ function getRedirectUri(req, path) {
     return `${req.protocol}://${req.get('host')}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-router.get('/download-audio', async (req, res) => {
+router.get('/download-audio', isAuthenticated, async (req, res) => {
     const { url, sessionId } = req.query;
     const downloadStartTime = Date.now();
     if (!sessionId) {
@@ -522,7 +522,7 @@ async function downloadAudio(link, audioPath, format = 'best', onProgress = null
     });
 }
 
-router.post('/download-image', async (req, res) => {
+router.post('/download-image', isAuthenticated, async (req, res) => {
     const { url, sessionId } = req.body;
     if (!sessionId || !url) {
         return res.status(400).json({ success: false, message: 'Session ID and Image URL are required.' });
@@ -546,7 +546,7 @@ router.post('/download-image', async (req, res) => {
     }
 });
 
-router.post('/upload-file', (req, res) => {
+router.post('/upload-file', isAuthenticated, (req, res) => {
     const form = formidable({
         maxFileSize: 1024 * 1024 * 1024, // 1GB
         maxTotalFileSize: 1024 * 1024 * 1024, // 1GB
@@ -613,7 +613,7 @@ router.post('/upload-file', (req, res) => {
     });
 });
 
-router.post('/remove-file', async (req, res) => {
+router.post('/remove-file', isAuthenticated, async (req, res) => {
     const { sessionId, type } = req.body;
     if (!sessionId || !type) {
         return res.status(400).json({ success: false, message: 'Session ID and file type are required.' });
@@ -651,10 +651,9 @@ router.post('/remove-file', async (req, res) => {
     }
 });
 
-router.get('/channels', async (req, res) => {
+router.get('/channels', isAuthenticated, async (req, res) => {
     try {
-        const username = req.session && req.session.username ? req.session.username : null;
-        if (!username) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        const username = req.session.username;
 
         let allChannels = [];
 
@@ -1442,7 +1441,7 @@ async function processVideoQueue() {
 }
 
 // ... (rest of the code remains the same)
-router.get('/session-status', async (req, res) => {
+router.get('/session-status', isAuthenticated, async (req, res) => {
     const { sessionId } = req.query;
     if (!sessionId) return res.status(400).json({ success: false, message: 'Session ID is missing.' });
     try {
@@ -1484,7 +1483,7 @@ router.get('/session-status', async (req, res) => {
     }
 });
 
-router.post('/create-video', upload.none(), async (req, res) => {
+router.post('/create-video', isAuthenticated, upload.none(), async (req, res) => {
     const { sessionId, title, description, tags, visibility, publishAt, channelId, platform, overlay } = req.body;
     if (!sessionId) return res.status(400).json({ success: false, error: 'Session ID is missing.' });
 
@@ -1532,7 +1531,7 @@ router.post('/create-video', upload.none(), async (req, res) => {
     }
 });
 
-router.post('/start-automation', async (req, res) => {
+router.post('/start-automation', isAuthenticated, isAdmin, async (req, res) => {
     const { links, thumbUrl, __internalCall, applyDelay } = req.body;
     console.log(`[Automation API] Received request. Links: ${links?.length}, Internal: ${!!__internalCall}, applyDelay: ${applyDelay}`);
 
@@ -1815,7 +1814,7 @@ router.post('/start-automation', async (req, res) => {
     }
 });
 
-router.get('/job-status/:sessionId', (req, res) => {
+router.get('/job-status/:sessionId', isAuthenticated, (req, res) => {
     const { sessionId } = req.params;
     const status = jobStatus[sessionId];
     if (!status) return res.status(404).json({ status: 'not_found', message: 'Job not found.' });
@@ -1832,7 +1831,7 @@ router.get('/job-status/:sessionId', (req, res) => {
 
 // --- Authentication Routes ---
 
-router.get('/auth/mp3toyt', async (req, res) => {
+router.get('/auth/mp3toyt', isAuthenticated, async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
 
@@ -1988,7 +1987,7 @@ router.get('/auth/mp3toyt', async (req, res) => {
 
 // --- Facebook Authentication (via Bundle.social) ---
 
-router.get('/auth/facebook', async (req, res) => {
+router.get('/auth/facebook', isAuthenticated, async (req, res) => {
     try {
         // We use the same callback URL, though strictly speaking Bundle might just need *any* URL to redirect back to.
         const redirectUri = getRedirectUri(req, '/auth/facebook/callback');
@@ -2075,7 +2074,7 @@ async function claimBundleChannels(username, targetInstanceId = null) {
     }
 }
 
-router.get('/auth/facebook/callback', async (req, res) => {
+router.get('/auth/facebook/callback', isAuthenticated, async (req, res) => {
     // When returning from Bundle's connect flow, the user has already connected the account to Bundle.
     const username = req.session && req.session.username ? req.session.username : 'guest';
     const { inst } = req.query;
@@ -2116,7 +2115,7 @@ router.get('/auth/facebook/callback', async (req, res) => {
     `);
 });
 
-router.get('/auth/youtube/callback', async (req, res) => {
+router.get('/auth/youtube/callback', isAuthenticated, async (req, res) => {
     const username = req.session && req.session.username ? req.session.username : 'guest';
     const { inst } = req.query;
     let newChannelId = '';
@@ -2153,7 +2152,7 @@ router.get('/auth/youtube/callback', async (req, res) => {
     `);
 });
 
-router.get('/mp3toyt/oauth2callback', async (req, res) => {
+router.get('/mp3toyt/oauth2callback', isAuthenticated, async (req, res) => {
     const { code } = req.query;
     const redirectUri = getRedirectUri(req, '/mp3toyt/oauth2callback');
 
@@ -2221,7 +2220,7 @@ router.get('/mp3toyt/oauth2callback', async (req, res) => {
 });
 
 // Route to delete a connected channel
-router.post('/delete-channel', async (req, res) => {
+router.post('/delete-channel', isAuthenticated, async (req, res) => {
     const { channelId } = req.body;
     if (!channelId) return res.status(400).json({ success: false, error: 'Channel ID required' });
 
@@ -2279,7 +2278,7 @@ router.post('/delete-channel', async (req, res) => {
 });
 
 // --- Cookies Management ---
-router.get('/get-cookies', async (req, res) => {
+router.post('/get-cookies', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(YOUTUBE_COOKIES_PATH)) {
             const content = await fs.readFile(YOUTUBE_COOKIES_PATH, 'utf8');
@@ -2293,7 +2292,7 @@ router.get('/get-cookies', async (req, res) => {
     }
 });
 
-router.post('/save-cookies', async (req, res) => {
+router.post('/save-cookies', isAuthenticated, isAdmin, async (req, res) => {
     const { cookies } = req.body;
     try {
         await fs.writeFile(YOUTUBE_COOKIES_PATH, cookies, 'utf8');
@@ -2305,7 +2304,7 @@ router.post('/save-cookies', async (req, res) => {
 });
 
 // --- Credentials Management ---
-router.get('/get-credentials', async (req, res) => {
+router.post('/get-credentials', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(CREDENTIALS_PATH)) {
             const content = await fs.readFile(CREDENTIALS_PATH, 'utf8');
@@ -2319,7 +2318,7 @@ router.get('/get-credentials', async (req, res) => {
     }
 });
 
-router.post('/save-credentials', async (req, res) => {
+router.post('/save-credentials', isAuthenticated, isAdmin, async (req, res) => {
     const { credentials } = req.body;
     try {
         if (!credentials || credentials.trim().length === 0) {
@@ -2349,7 +2348,7 @@ router.post('/save-credentials', async (req, res) => {
 });
 
 // --- Tokens Management ---
-router.get('/get-tokens', async (req, res) => {
+router.post('/get-tokens', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(TOKEN_PATH)) {
             const content = await fs.readFile(TOKEN_PATH, 'utf8');
@@ -2363,7 +2362,7 @@ router.get('/get-tokens', async (req, res) => {
     }
 });
 
-router.post('/save-tokens', async (req, res) => {
+router.post('/save-tokens', isAuthenticated, isAdmin, async (req, res) => {
     const { tokens } = req.body;
     try {
         JSON.parse(tokens); // Validate JSON
@@ -2376,7 +2375,7 @@ router.post('/save-tokens', async (req, res) => {
 });
 
 // --- Channels Management ---
-router.get('/get-channels-json', async (req, res) => {
+router.post('/get-channels-json', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         const targetPath = (username === 'erraja') ? ADMIN_CHANNELS_PATH : CHANNELS_PATH;
@@ -2393,7 +2392,7 @@ router.get('/get-channels-json', async (req, res) => {
     }
 });
 
-router.post('/save-channels-json', async (req, res) => {
+router.post('/save-channels-json', isAuthenticated, isAdmin, async (req, res) => {
     const { channels } = req.body;
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
@@ -2410,7 +2409,7 @@ router.post('/save-channels-json', async (req, res) => {
 
 // --- Facebook Credentials Management ---
 
-router.get('/get-facebook-credentials', async (req, res) => {
+router.post('/get-facebook-credentials', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(FACEBOOK_CREDENTIALS_PATH)) {
             const creds = await fs.readJson(FACEBOOK_CREDENTIALS_PATH);
@@ -2424,7 +2423,7 @@ router.get('/get-facebook-credentials', async (req, res) => {
     }
 });
 
-router.post('/save-facebook-credentials', async (req, res) => {
+router.post('/save-facebook-credentials', isAuthenticated, isAdmin, async (req, res) => {
     const { credentials } = req.body;
     try {
         const creds = JSON.parse(credentials);
@@ -2443,7 +2442,7 @@ router.post('/save-facebook-credentials', async (req, res) => {
 
 // --- Facebook Cookies Management (Puppeteer) ---
 
-router.get('/get-facebook-cookies', async (req, res) => {
+router.post('/get-facebook-cookies', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
@@ -2461,7 +2460,7 @@ router.get('/get-facebook-cookies', async (req, res) => {
     }
 });
 
-router.post('/save-facebook-cookies', async (req, res) => {
+router.post('/save-facebook-cookies', isAuthenticated, isAdmin, async (req, res) => {
     const { cookies } = req.body;
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
@@ -2478,7 +2477,7 @@ router.post('/save-facebook-cookies', async (req, res) => {
     }
 });
 
-router.get('/api/visitor-stats', isAdmin, async (req, res) => {
+router.post('/api/visitor-stats', isAdmin, async (req, res) => {
     try {
         const stats = await getStats();
 

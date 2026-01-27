@@ -17713,7 +17713,7 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                             bis_skin_checked="1">
                             <ul class="elementor-icon-list-items elementor-inline-items">
                                 <li class="elementor-icon-list-item elementor-inline-item">
-                                    <a href="/auth" role="link">
+                                    <a href="javascript:void(0)" onclick="openLoginModal('signup')" role="link">
                                         <span class="elementor-icon-list-icon">
                                             <i aria-hidden="true" class="icon icon-Group-441"></i> </span>
                                         <span class="elementor-icon-list-text">Get Started</span>
@@ -19414,12 +19414,7 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                         data-id="ce7a36a" data-element_type="widget" data-widget_type="icon-list.default"
                         bis_skin_checked="1">
                         <ul class="elementor-icon-list-items">
-                            <li class="elementor-icon-list-item">
-                                <a href="/prediction-markets/" role="link">
 
-                                    <span class="elementor-icon-list-text">Content Search</span>
-                                </a>
-                            </li>
                             <li class="elementor-icon-list-item">
                                 <a href="/soccer-data-api/" role="link">
 
@@ -19444,18 +19439,8 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                                     <span class="elementor-icon-list-text">VIMEO</span>
                                 </a>
                             </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/cricket-data-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">TIKTOK</span>
-                                </a>
-                            </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/american-football-data-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">INSTAGRAM</span>
-                                </a>
-                            </li>
                             <li class="elementor-icon-list-item">
                                 <a href="/baseball-data-api/" role="link">
 
@@ -19468,36 +19453,11 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                                     <span class="elementor-icon-list-text">DAILYMOTION</span>
                                 </a>
                             </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/table-tennis-data-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">TWITCH</span>
-                                </a>
-                            </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/volleyball-data-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">TWITTER/X</span>
-                                </a>
-                            </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/horse-racing-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">GENERIC MEDIA</span>
-                                </a>
-                            </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/media-conversion-api/" role="link">
 
-                                    <span class="elementor-icon-list-text">GAMING CLIPS</span>
-                                </a>
-                            </li>
-                            <li class="elementor-icon-list-item">
-                                <a href="/ncaa-data/" role="link">
 
-                                    <span class="elementor-icon-list-text">EDUCATION</span>
-                                </a>
-                            </li>
                         </ul>
                     </div>
                     <div class="elementor-element elementor-element-9069c45 elementor-list-item-link-inline elementor-align-left elementor-icon-list--layout-traditional elementor-widget elementor-widget-icon-list"
@@ -19930,8 +19890,13 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
             document.body.style.overflow = 'auto';
         }
 
-        function openLoginModal() {
+        function openLoginModal(mode = 'login') {
             const modal = document.getElementById('login-modal');
+            const iframe = modal.querySelector('iframe');
+
+            // Set mode in iframe URL
+            iframe.src = mode === 'signup' ? 'login.html?mode=signup' : 'login.html';
+
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
 
