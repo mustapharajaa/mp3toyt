@@ -17633,8 +17633,8 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                                         <li class="menu-item free-trial"><a href="javascript:void(0)"
                                                 onclick="openPricingModal()" role="link">Pricing</a>
                                         </li>
-                                        <li class="menu-item get-demo"><a href="javascript:void(0)"
-                                                onclick="openLoginModal()" role="link">login</a>
+                                        <li class="menu-item get-demo"><a href="/login"
+                                                onclick="openLoginModal(); return false;" role="link">login</a>
                                         </li>
                                         <li class="menu-item lang-switcher"><button class="menu-trigger"
                                                 aria-haspopup="true" aria-expanded="false"
@@ -17713,7 +17713,7 @@ In your html page, add the snippet and call gtag_report_conversion when someone 
                             bis_skin_checked="1">
                             <ul class="elementor-icon-list-items elementor-inline-items">
                                 <li class="elementor-icon-list-item elementor-inline-item">
-                                    <a href="javascript:void(0)" onclick="openLoginModal('signup')" role="link">
+                                    <a href="/signup" onclick="openLoginModal('signup'); return false;" role="link">
                                         <span class="elementor-icon-list-icon">
                                             <i aria-hidden="true" class="icon icon-Group-441"></i> </span>
                                         <span class="elementor-icon-list-text">Get Started</span>

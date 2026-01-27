@@ -1187,25 +1187,56 @@ document.addEventListener('DOMContentLoaded', () => {
                         </tr>
                     `).join('') || '<tr><td colspan="2" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
 
-                // Render IPs (Sorted by most recent visit)
-                statsIpsBody.innerHTML = Object.entries(s.ipAddresses || {})
-                    .sort((a, b) => {
-                        const timeA = new Date(a[1].lastSeen || 0);
-                        const timeB = new Date(b[1].lastSeen || 0);
-                        // If both have timestamps, sort by time. Otherwise fallback to hits for old data.
-                        if (timeA.getTime() === 0 && timeB.getTime() === 0) {
-                            return b[1].hits - a[1].hits;
-                        }
-                        return timeB - timeA;
-                    })
-                    .slice(0, 100) // Show top 100 recent
-                    .map(([ip, details]) => `
-                        <tr>
-                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; color: black;">${ip}</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: black;">${details.country}</td>
-                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; color: black;">${details.hits}</td>
-                        </tr>
-                    `).join('') || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
+                // --- Dynamic IP Sorting Logic ---
+                let currentIps = s.ipAddresses || {};
+                let currentSort = 'recent'; // Default
+
+                const renderIps = (sortBy) => {
+                    currentSort = sortBy;
+
+                    // Update header icons
+                    const hitsIcon = document.querySelector('#sort-ips-hits i');
+                    const recentIcon = document.querySelector('#sort-ips-recent i');
+                    if (sortBy === 'hits') {
+                        hitsIcon.className = 'fas fa-sort-down';
+                        recentIcon.className = 'fas fa-sort';
+                    } else {
+                        hitsIcon.className = 'fas fa-sort';
+                        recentIcon.className = 'fas fa-sort-down';
+                    }
+
+                    statsIpsBody.innerHTML = Object.entries(currentIps)
+                        .sort((a, b) => {
+                            if (sortBy === 'hits') return b[1].hits - a[1].hits;
+                            const timeA = new Date(a[1].lastSeen || 0);
+                            const timeB = new Date(b[1].lastSeen || 0);
+                            if (timeA.getTime() === 0 && timeB.getTime() === 0) return b[1].hits - a[1].hits;
+                            return timeB - timeA;
+                        })
+                        .slice(0, 100)
+                        .map(([ip, details]) => {
+                            const lastSeen = details.lastSeen ? new Date(details.lastSeen).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
+                            return `
+                                <tr>
+                                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; color: black;">${ip}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; color: black;">${details.country}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; color: black;">${details.hits}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; text-align: right; color: #64748b; font-size: 0.8em; white-space: nowrap;">${lastSeen}</td>
+                                </tr>
+                            `;
+                        }).join('') || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
+                };
+
+                // Add event listeners for sorting (only once)
+                const hitsHeader = document.getElementById('sort-ips-hits');
+                const recentHeader = document.getElementById('sort-ips-recent');
+
+                // Clear old listeners if any (though these are fresh elements inside the modal render logic usually, but here they are static in app.html)
+                hitsHeader.onclick = () => renderIps('hits');
+                recentHeader.onclick = () => renderIps('recent');
+
+                // Initial render
+                renderIps('recent');
 
                 // Populate Detailed Logs Table
                 const detailedBody = document.getElementById('stats-detailed-body');

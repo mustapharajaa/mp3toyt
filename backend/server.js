@@ -158,8 +158,22 @@ app.get('/app', (req, res) => {
     if (req.session && req.session.userId) {
         res.sendFile(path.join(__dirname, '../frontend/app.html'));
     } else {
-        res.redirect('/');
+        res.redirect('/login');
     }
+});
+
+// Login and Signup Standalone Routes
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+
+app.get('/signup', (req, res) => {
+    res.redirect('/login?mode=signup');
+});
+
+app.get('/auth', (req, res) => {
+    // Legacy support for /auth link
+    res.redirect('/login');
 });
 
 app.listen(PORT, () => {
