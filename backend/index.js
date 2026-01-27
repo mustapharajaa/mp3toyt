@@ -2502,7 +2502,7 @@ router.get('/api/visitor-stats', isAdmin, async (req, res) => {
         const stats = await getStats();
 
         // Add Detailed Logs from path_tracking.json
-        const PATH_TRACKING_FILE = path.join(process.cwd(), 'path_tracking.json');
+        const PATH_TRACKING_FILE = path.join(__dirname, '../path_tracking.json');
         let detailedLogs = {};
         if (await fs.pathExists(PATH_TRACKING_FILE)) {
             try {
