@@ -1258,20 +1258,38 @@ async function processVideoQueue() {
             const postText = `${title}\n\n${description || ''}`;
 
             if (platform === 'facebook') {
-                bundleApi.postToFacebook(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt)
-                    .then(res => console.log(`[Queue] Background Facebook post result:`, JSON.stringify(res)))
-                    .catch(err => console.error(`[Queue] Background Facebook post failed:`, err.message));
-            } else {
-                bundleApi.postToYoutube(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt)
-                    .then(res => console.log(`[Queue] Background Bundle YouTube post result:`, JSON.stringify(res)))
-                    .catch(err => console.error(`[Queue] Background Bundle YouTube post failed:`, err.message));
-            }
+                const postResult = await bundleApi.postToFacebook(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt);
+                console.log(`[Queue] Background Facebook post result:`, JSON.stringify(postResult));
 
-            uploadResult = {
-                success: true,
-                data: { id: mediaId },
-                url: `https://bundle.social/dashboard`
-            };
+                if (postResult.success) {
+                    uploadResult = {
+                        success: true,
+                        data: { id: postResult.data.id },
+                        url: postResult.url
+                    };
+                } else {
+                    uploadResult = {
+                        success: false,
+                        error: 'Not uploaded error'
+                    };
+                }
+            } else {
+                const postResult = await bundleApi.postToYoutube(bundleInstanceId, actualChannelId, mediaId, postText, finalPublishAt);
+                console.log(`[Queue] Background Bundle YouTube post result:`, JSON.stringify(postResult));
+
+                if (postResult.success) {
+                    uploadResult = {
+                        success: true,
+                        data: { id: postResult.data.id },
+                        url: postResult.url
+                    };
+                } else {
+                    uploadResult = {
+                        success: false,
+                        error: 'Not uploaded error'
+                    };
+                }
+            }
         } else if (platform === 'facebook' && username === 'erraja') {
             // Direct Facebook Posting for Admin (erraja) using Puppeteer
             console.log(`[Queue] Using Puppeteer Automation for Facebook admin: erraja`);
@@ -1393,7 +1411,8 @@ async function processVideoQueue() {
         try {
             await acquireAutomationLock();
             // Update stats if successful
-            if (jobStatus[sessionId].status === 'complete') {
+            // Update stats if successful AND it's an automation job
+            if (jobStatus[sessionId].status === 'complete' && job.isAutomation) {
                 let stats = {};
                 if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
                     stats = await fs.readJson(AUTOMATION_STATS_PATH);
@@ -1778,7 +1797,8 @@ router.post('/start-automation', isAuthenticated, isAdmin, async (req, res) => {
                     username,
                     deleteChannelOnSuccess: activeDeleteOnSuccess,
                     applyDelay, // Save preference for potential restart on new channel
-                    channelMeta: activeChannel
+                    channelMeta: activeChannel,
+                    isAutomation: true
                 });
 
                 console.log(`[Automation] Background tasks queued. Lifetime Total: ${stats.total_lifetime_videos}`);
