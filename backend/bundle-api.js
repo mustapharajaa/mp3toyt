@@ -164,6 +164,11 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
         .filter(i => {
             const usage = getUsageForKey(instances[i].key);
             return usage.uploads < 10 && !usage[platformField];
+        })
+        .sort((a, b) => {
+            const usageA = getUsageForKey(instances[a].key).uploads || 0;
+            const usageB = getUsageForKey(instances[b].key).uploads || 0;
+            return usageA - usageB; // Sort Ascending: Least used first
         });
 
     let finalIndices = availableIndices;
