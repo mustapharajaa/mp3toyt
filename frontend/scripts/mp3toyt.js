@@ -1187,10 +1187,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         </tr>
                     `).join('') || '<tr><td colspan="2" style="padding: 20px; text-align: center; color: black; font-weight: 500;">No data yet</td></tr>';
 
-                // Render IPs (Simplified list)
+                // Render IPs (Sorted by most recent visit)
                 statsIpsBody.innerHTML = Object.entries(s.ipAddresses || {})
-                    .sort((a, b) => b[1].hits - a[1].hits)
-                    .slice(0, 50) // Show top 50
+                    .sort((a, b) => {
+                        const timeA = new Date(a[1].lastSeen || 0);
+                        const timeB = new Date(b[1].lastSeen || 0);
+                        // If both have timestamps, sort by time. Otherwise fallback to hits for old data.
+                        if (timeA.getTime() === 0 && timeB.getTime() === 0) {
+                            return b[1].hits - a[1].hits;
+                        }
+                        return timeB - timeA;
+                    })
+                    .slice(0, 100) // Show top 100 recent
                     .map(([ip, details]) => `
                         <tr>
                             <td style="padding: 10px; border-bottom: 1px solid #f1f5f9; font-family: monospace; color: black;">${ip}</td>

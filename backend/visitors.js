@@ -62,7 +62,11 @@ export async function trackVisitor(ip) {
             ip.startsWith('172.31.');
 
         if (isLocal) {
-            data.ipAddresses[ip] = { country: 'Localhost/Private', hits: 1 };
+            data.ipAddresses[ip] = {
+                country: 'Localhost/Private',
+                hits: 1,
+                lastSeen: new Date().toISOString()
+            };
             data.visitorsPerCountry['Localhost/Private'] = (data.visitorsPerCountry['Localhost/Private'] || 0) + 1;
         } else {
             try {
@@ -72,18 +76,31 @@ export async function trackVisitor(ip) {
 
                 if (geo.status === 'success') {
                     const country = geo.country || 'Unknown';
-                    data.ipAddresses[ip] = { country, hits: 1 };
+                    data.ipAddresses[ip] = {
+                        country,
+                        hits: 1,
+                        lastSeen: new Date().toISOString()
+                    };
                     data.visitorsPerCountry[country] = (data.visitorsPerCountry[country] || 0) + 1;
                 } else {
-                    data.ipAddresses[ip] = { country: 'Unknown', hits: 1 };
+                    data.ipAddresses[ip] = {
+                        country: 'Unknown',
+                        hits: 1,
+                        lastSeen: new Date().toISOString()
+                    };
                 }
             } catch (error) {
                 console.error(`[Visitor Debug] Error geolocating IP ${ip}:`, error.message);
-                data.ipAddresses[ip] = { country: 'Error', hits: 1 };
+                data.ipAddresses[ip] = {
+                    country: 'Error',
+                    hits: 1,
+                    lastSeen: new Date().toISOString()
+                };
             }
         }
     } else {
         data.ipAddresses[ip].hits++;
+        data.ipAddresses[ip].lastSeen = new Date().toISOString();
     }
 
     await saveVisitors(data);
