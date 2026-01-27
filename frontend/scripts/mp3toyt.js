@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openAnalyticsModal = async () => {
         try {
-            const res = await fetch('/api/visitor-stats', { method: 'POST' });
+            const res = await fetch('/api/visitor-stats', { method: 'GET' });
             if (!res.ok) throw new Error('Failed to fetch stats');
             const data = await res.json();
 
@@ -1207,20 +1207,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const logsArray = Object.keys(detailedLogs).map(ip => ({
                     ip,
                     ...detailedLogs[ip]
-                })).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+                })).sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen)).slice(0, 100);
 
                 detailedBody.innerHTML = logsArray.map(log => {
                     const firstSeen = new Date(log.first_seen).toLocaleString();
                     const lastSeen = new Date(log.last_seen).toLocaleString();
 
-                    // Format Paths nicely
+                    // Format Paths nicely (Limit to last 10 for performance)
                     let pathsHtml = '';
                     if (Array.isArray(log.paths) && log.paths.length > 0) {
-                        pathsHtml = log.paths.map(p => `
+                        const displayedPaths = log.paths.slice(-10);
+                        pathsHtml = displayedPaths.map(p => `
                             <span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; margin:2px; font-size:0.8em; font-family:monospace;">
                                 ${p}
                             </span>
                         `).join('');
+                        if (log.paths.length > 10) {
+                            pathsHtml += `<span style="color:#94a3b8; font-size:0.8em; margin-left:5px;">+${log.paths.length - 10} more</span>`;
+                        }
                     } else {
                         pathsHtml = '<span style="color:#94a3b8;">No paths recorded</span>';
                     }

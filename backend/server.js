@@ -62,7 +62,7 @@ app.use(async (req, res, next) => {
         if (req.method === 'GET' && !isStatic) {
             // 1. General Stats Tracking (Existing)
             if (req.path === '/app' || req.path === '/' || req.path === '/app/') {
-                trackVisitor(ip);
+                await trackVisitor(ip);
             }
 
             // 2. Detailed Path Logging (Grouped by IP)

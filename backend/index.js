@@ -2497,7 +2497,7 @@ router.post('/save-facebook-cookies', isAuthenticated, isAdmin, async (req, res)
     }
 });
 
-router.post('/api/visitor-stats', isAdmin, async (req, res) => {
+router.get('/api/visitor-stats', isAdmin, async (req, res) => {
     try {
         const stats = await getStats();
 
@@ -2507,6 +2507,14 @@ router.post('/api/visitor-stats', isAdmin, async (req, res) => {
         if (await fs.pathExists(PATH_TRACKING_FILE)) {
             try {
                 detailedLogs = await fs.readJson(PATH_TRACKING_FILE);
+                // Optimization: Only send the last 200 IPs to prevent massive payload
+                const entries = Object.entries(detailedLogs);
+                if (entries.length > 200) {
+                    // Sort by last_seen if possible, or just take last 200
+                    detailedLogs = Object.fromEntries(
+                        entries.sort((a, b) => new Date(b[1].last_seen) - new Date(a[1].last_seen)).slice(0, 200)
+                    );
+                }
             } catch (e) {
                 console.error('Error reading path_tracking.json:', e);
             }

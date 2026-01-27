@@ -53,9 +53,17 @@ export async function trackVisitor(ip) {
         data.uniqueVisitors++;
 
         // Handle local/private IPs explicitly
-        if (ip.startsWith('192.168.') || ip.startsWith('10.')) {
-            data.ipAddresses[ip] = { country: 'Local', hits: 1 };
-            data.visitorsPerCountry['Local'] = (data.visitorsPerCountry['Local'] || 0) + 1;
+        const isLocal = ip === '::1' ||
+            ip === '127.0.0.1' ||
+            ip.startsWith('::ffff:127.') ||
+            ip.startsWith('192.168.') ||
+            ip.startsWith('10.') ||
+            ip.startsWith('172.16.') || // Simplistic private range check
+            ip.startsWith('172.31.');
+
+        if (isLocal) {
+            data.ipAddresses[ip] = { country: 'Localhost/Private', hits: 1 };
+            data.visitorsPerCountry['Localhost/Private'] = (data.visitorsPerCountry['Localhost/Private'] || 0) + 1;
         } else {
             try {
                 // Geolocate using ip-api.com
