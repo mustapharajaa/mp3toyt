@@ -132,8 +132,8 @@ export async function getAvailableInstance(platform) {
 
     for (const inst of instances) {
         const usage = getUsageForKey(inst.key);
-        // User rule: < 100 uploads and slot must be free
-        if (usage.uploads < 100 && !usage[platformField]) {
+        // User rule: < 10 uploads and slot must be free
+        if (usage.uploads < 10 && !usage[platformField]) {
             return inst;
         }
     }
@@ -163,7 +163,7 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
         .map((_, i) => i)
         .filter(i => {
             const usage = getUsageForKey(instances[i].key);
-            return usage.uploads < 100 && !usage[platformField];
+            return usage.uploads < 10 && !usage[platformField];
         });
 
     let finalIndices = availableIndices;
@@ -175,7 +175,7 @@ async function getConnectUrlWithRotation(type, redirectUrl) {
 
         for (let i = 0; i < instances.length; i++) {
             const usage = getUsageForKey(instances[i].key);
-            if (usage.uploads >= 100) continue; // Skip keys with no quota
+            if (usage.uploads >= 10) continue; // Skip keys with no quota
 
             // Find the most recent activity for this platform on this key
             let lastPlatformActive = 0;
@@ -441,6 +441,15 @@ async function postToPlatform(instanceId, type, channelId, mediaId, text, schedu
         };
     } catch (error) {
         console.error(`[Bundle] Error creating ${type} post:`, error);
+
+        // Auto-sync usage if limit reached
+        if (error.status === 403 && error.body && error.body.message && error.body.message.includes('Monthly post limit reached')) {
+            console.warn(`[Bundle] Key ${inst.id} reached monthly limit (403). Updating local usage to 10.`);
+            const usage = getUsageForKey(inst.key);
+            usage.uploads = 10; // Force rotation
+            await saveUsage();
+        }
+
         return { success: false, error: error.message };
     }
 }
