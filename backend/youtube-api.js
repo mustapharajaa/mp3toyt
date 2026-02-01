@@ -1658,7 +1658,9 @@ export async function uploadVideo(channelId, videoPath, videoMetadata, onProgres
             return { success: true, data: response.data };
         } catch (error) {
             console.error(`[YouTubeAPI] Upload attempt ${i} failed:`, error.message);
-            const isNonRetryable = error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded');
+            const isNonRetryable = error.message.includes('exceeded the number of videos') ||
+                error.message.includes('quotaExceeded') ||
+                (error.message.includes('exceeded your') && error.message.includes('quota'));
             if (i === attempts || isNonRetryable) {
                 return { success: false, error: `Upload failed: ${error.message}` };
             }

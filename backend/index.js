@@ -1424,44 +1424,56 @@ async function processVideoQueue() {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
-        if (username === 'erraja' && (
-            error.message.includes('exceeded the number of videos') ||
-            error.message.includes('quotaExceeded') ||
-            error.message.includes('exceeded your') && error.message.includes('quota')
-        )) {
-            console.log(`[Queue] Admin channel ${actualChannelId} has hit its limit. Auto-deleting for clean system.`);
-            try {
-                // Persistent Quota Alert Flag
-                let stats = {};
-                if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
-                    stats = await fs.readJson(AUTOMATION_STATS_PATH);
+        if (username === 'erraja') {
+            const isGlobalQuota = error.message.includes('quotaExceeded') ||
+                (error.message.includes('exceeded your') && error.message.includes('quota'));
+            const isChannelLimit = error.message.includes('exceeded the number of videos');
+
+            if (isGlobalQuota) {
+                console.log(`[Queue] Global YouTube API quota reached. Setting alert flag and keeping channel.`);
+                try {
+                    let stats = {};
+                    if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                        stats = await fs.readJson(AUTOMATION_STATS_PATH);
+                    }
+                    stats.youtubeQuotaExceeded = true;
+                    stats.lastQuotaExceededAt = new Date().toISOString();
+                    await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                    broadcastQuotaStatus(true);
+
+                    // Stop processing for now since any other channel will also fail
+                    isProcessingVideo = false;
+                    return;
+                } catch (statsErr) {
+                    console.error('[Quota Flag Error]', statsErr.message);
                 }
-                stats.youtubeQuotaExceeded = true;
-                stats.lastQuotaExceededAt = new Date().toISOString();
-                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
-                broadcastQuotaStatus(true);
+            }
 
-                await mp3toytChannels.deleteChannel(actualChannelId, username);
-                await deleteToken(actualChannelId);
+            if (isChannelLimit) {
+                console.log(`[Queue] Admin channel ${actualChannelId} has hit its per-channel limit. Auto-deleting for rotation.`);
+                try {
+                    await mp3toytChannels.deleteChannel(actualChannelId, username);
+                    await deleteToken(actualChannelId);
 
-                // --- QUEUE HALT LOGIC ---
-                // After deleting the exhausted channel, check if any other YouTube channels are left
-                const remaining = (await mp3toytChannels.getChannelsForUser(username))
-                    .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
+                    // --- QUEUE HALT LOGIC ---
+                    // After deleting the exhausted channel, check if any other YouTube channels are left
+                    const remaining = (await mp3toytChannels.getChannelsForUser(username))
+                        .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
 
-                if (remaining.length === 0) {
-                    console.error(`[Queue] All channels for ${username} are exhausted. PAUSING QUEUE for this user.`);
-                    // We don't want to process the rest of the queue if there's no channel to use.
-                    // Instead of failing, we'll unshift the current job back to the front of the queue
-                    // and stop the processing loop until a new channel is connected.
-                    videoQueue.unshift(job);
-                    jobStatus[sessionId] = { status: 'waiting', message: 'Waiting for channel quota reset or new channel...' };
+                    if (remaining.length === 0) {
+                        console.error(`[Queue] All channels for ${username} are exhausted. PAUSING QUEUE for this user.`);
+                        // We don't want to process the rest of the queue if there's no channel to use.
+                        // Instead of failing, we'll unshift the current job back to the front of the queue
+                        // and stop the processing loop until a new channel is connected.
+                        videoQueue.unshift(job);
+                        jobStatus[sessionId] = { status: 'waiting', message: 'Waiting for channel quota reset or new channel...' };
 
-                    isProcessingVideo = false; // Release the loop
-                    return; // EXIT WITHOUT RESTARTING THE LOOP
+                        isProcessingVideo = false; // Release the loop
+                        return; // EXIT WITHOUT RESTARTING THE LOOP
+                    }
+                } catch (delErr) {
+                    console.error(`[Queue] Failed to handle exhausted admin channel ${actualChannelId}:`, delErr.message);
                 }
-            } catch (delErr) {
-                console.error(`[Queue] Failed to handle exhausted admin channel ${actualChannelId}:`, delErr.message);
             }
         }
     } finally {
