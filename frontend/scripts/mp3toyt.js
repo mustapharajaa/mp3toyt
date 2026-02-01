@@ -966,7 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (manageCookiesBtn) {
         manageCookiesBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/get-cookies', { method: 'POST' });
+                const res = await fetch('/get-cookies');
                 const data = await res.json();
                 if (data.success) {
                     cookiesEditor.value = data.cookies || '';

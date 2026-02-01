@@ -2298,7 +2298,7 @@ router.post('/delete-channel', isAuthenticated, async (req, res) => {
 });
 
 // --- Cookies Management ---
-router.post('/get-cookies', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/get-cookies', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(YOUTUBE_COOKIES_PATH)) {
             const content = await fs.readFile(YOUTUBE_COOKIES_PATH, 'utf8');
@@ -2462,7 +2462,7 @@ router.post('/save-facebook-credentials', isAuthenticated, isAdmin, async (req, 
 
 // --- Facebook Cookies Management (Puppeteer) ---
 
-router.post('/get-facebook-cookies', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/get-facebook-cookies', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         if (username !== 'erraja') return res.status(403).json({ success: false, message: 'Admin only.' });
