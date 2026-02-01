@@ -1361,6 +1361,23 @@ async function processVideoQueue() {
         // Note: Automation stats tracking removed for manual Facebook uploads.
         // Stats should only increment for actual scheduled automation posts.
 
+        // Flag YouTube quota as resolved if it was previously set
+        if (platform === 'youtube' && username === 'erraja') {
+            try {
+                let stats = {};
+                if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                    stats = await fs.readJson(AUTOMATION_STATS_PATH);
+                    if (stats.youtubeQuotaExceeded) {
+                        stats.youtubeQuotaExceeded = false;
+                        await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                        console.log('[Quota] YouTube quota alert cleared after successful upload.');
+                    }
+                }
+            } catch (statsErr) {
+                console.error('[Quota] Failed to clear quota flag:', statsErr.message);
+            }
+        }
+
         // --- Channel Deletion for Automation Cycle (6th Video) ---
         if (finalDeleteOnSuccess) {
             console.log(`[Automation] Cycle Complete (6/6). Deleting channel ${actualChannelId} to rotate.`);
@@ -1389,6 +1406,15 @@ async function processVideoQueue() {
         if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
             console.log(`[Queue] Admin channel ${actualChannelId} has hit its limit. Auto-deleting for clean system.`);
             try {
+                // Persistent Quota Alert Flag
+                let stats = {};
+                if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+                    stats = await fs.readJson(AUTOMATION_STATS_PATH);
+                }
+                stats.youtubeQuotaExceeded = true;
+                stats.lastQuotaExceededAt = new Date().toISOString();
+                await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+
                 await mp3toytChannels.deleteChannel(actualChannelId, username);
                 await deleteToken(actualChannelId);
 
@@ -1504,6 +1530,20 @@ router.get('/session-status', isAuthenticated, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server error checking session status.' });
+    }
+});
+
+router.get('/get-quota-status', isAuthenticated, async (req, res) => {
+    try {
+        const statsPath = path.join(__dirname, '../automation_stats.json');
+        if (await fs.pathExists(statsPath)) {
+            const stats = await fs.readJson(statsPath);
+            return res.json({ success: true, youtubeQuotaExceeded: !!stats.youtubeQuotaExceeded });
+        }
+        res.json({ success: true, youtubeQuotaExceeded: false });
+    } catch (error) {
+        console.error('Error reading quota status:', error);
+        res.status(500).json({ success: false, message: 'Failed to read quota status.' });
     }
 });
 
