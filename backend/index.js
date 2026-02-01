@@ -1424,7 +1424,11 @@ async function processVideoQueue() {
         console.error(`[Queue] Error for session ${sessionId}:`, error.message);
         jobStatus[sessionId] = { status: 'failed', message: `An error occurred: ${error.message}` };
 
-        if (username === 'erraja' && (error.message.includes('exceeded the number of videos') || error.message.includes('quotaExceeded'))) {
+        if (username === 'erraja' && (
+            error.message.includes('exceeded the number of videos') ||
+            error.message.includes('quotaExceeded') ||
+            error.message.includes('exceeded your') && error.message.includes('quota')
+        )) {
             console.log(`[Queue] Admin channel ${actualChannelId} has hit its limit. Auto-deleting for clean system.`);
             try {
                 // Persistent Quota Alert Flag
