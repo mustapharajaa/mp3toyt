@@ -1799,22 +1799,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     manageUsersLink.style.display = 'block';
                 }
 
-                // --- YouTube Quota Alert Check ---
+                // --- YouTube Quota Alert (Real-time SSE) ---
                 if (isAdmin) {
                     const quotaAlert = document.getElementById('quota-alert');
-                    const checkQuota = async () => {
-                        try {
-                            const qRes = await fetch('/get-quota-status');
-                            const qData = await qRes.json();
-                            if (qData.success && qData.youtubeQuotaExceeded) {
-                                if (quotaAlert) quotaAlert.style.display = 'flex';
-                            } else {
-                                if (quotaAlert) quotaAlert.style.display = 'none';
-                            }
-                        } catch (e) { console.error('Quota check failed:', e); }
+                    let eventSource = null;
+
+                    const connectSSE = () => {
+                        if (eventSource) eventSource.close();
+                        eventSource = new EventSource('/quota-updates');
+
+                        eventSource.onmessage = (event) => {
+                            try {
+                                const data = JSON.parse(event.data);
+                                if (quotaAlert) {
+                                    quotaAlert.style.display = data.youtubeQuotaExceeded ? 'flex' : 'none';
+                                }
+                            } catch (e) { console.error('[SSE] Parse error:', e); }
+                        };
+
+                        eventSource.onerror = () => {
+                            console.warn('[SSE] Connection lost. Retrying in 10s...');
+                            eventSource.close();
+                            setTimeout(connectSSE, 10000);
+                        };
                     };
-                    checkQuota();
-                    setInterval(checkQuota, 5 * 60 * 1000); // Check every 5 mins
+                    connectSSE();
                 }
 
             } else {

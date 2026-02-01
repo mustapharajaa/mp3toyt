@@ -50,6 +50,26 @@ router.use(express.json());
 // --- Multer Configuration ---
 const UPLOADS_BASE_DIR = path.join(__dirname, '../uploads');
 const TEMP_BASE_DIR = path.join(__dirname, '../temp');
+const AUTOMATION_LOCK_PATH = path.join(__dirname, '../automation.lock');
+
+// --- SSE Real-time Quota Alert Clients ---
+const quotaClients = new Set();
+
+async function getQuotaExceededFlag() {
+    try {
+        if (await fs.pathExists(AUTOMATION_STATS_PATH)) {
+            const stats = await fs.readJson(AUTOMATION_STATS_PATH);
+            return !!stats.youtubeQuotaExceeded;
+        }
+    } catch (e) { console.error('[Quota] Error reading flag:', e.message); }
+    return false;
+}
+
+function broadcastQuotaStatus(isExceeded) {
+    const message = `data: ${JSON.stringify({ youtubeQuotaExceeded: isExceeded })}\n\n`;
+    quotaClients.forEach(client => client.res.write(message));
+    console.log(`[SSE] Broadcasted quota status: ${isExceeded} to ${quotaClients.size} clients.`);
+}
 const FALLBACK_THUMBNAILS_DIR = path.join(__dirname, '../temp/thumbnails');
 const upload = multer();
 
@@ -1371,6 +1391,7 @@ async function processVideoQueue() {
                         stats.youtubeQuotaExceeded = false;
                         await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
                         console.log('[Quota] YouTube quota alert cleared after successful upload.');
+                        broadcastQuotaStatus(false);
                     }
                 }
             } catch (statsErr) {
@@ -1414,6 +1435,7 @@ async function processVideoQueue() {
                 stats.youtubeQuotaExceeded = true;
                 stats.lastQuotaExceededAt = new Date().toISOString();
                 await fs.writeJson(AUTOMATION_STATS_PATH, stats, { spaces: 4 });
+                broadcastQuotaStatus(true);
 
                 await mp3toytChannels.deleteChannel(actualChannelId, username);
                 await deleteToken(actualChannelId);
@@ -1535,16 +1557,40 @@ router.get('/session-status', isAuthenticated, async (req, res) => {
 
 router.get('/get-quota-status', isAuthenticated, async (req, res) => {
     try {
-        const statsPath = path.join(__dirname, '../automation_stats.json');
-        if (await fs.pathExists(statsPath)) {
-            const stats = await fs.readJson(statsPath);
-            return res.json({ success: true, youtubeQuotaExceeded: !!stats.youtubeQuotaExceeded });
-        }
-        res.json({ success: true, youtubeQuotaExceeded: false });
+        const isExceeded = await getQuotaExceededFlag();
+        res.json({ success: true, youtubeQuotaExceeded: isExceeded });
     } catch (error) {
         console.error('Error reading quota status:', error);
         res.status(500).json({ success: false, message: 'Failed to read quota status.' });
     }
+});
+
+router.get('/quota-updates', isAuthenticated, (req, res) => {
+    // Only allow admin to listen for quota updates
+    const isAdmin = req.session && req.session.username === 'erraja';
+    if (!isAdmin) return res.status(403).end();
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    });
+
+    const clientId = Date.now();
+    const newClient = { id: clientId, res };
+    quotaClients.add(newClient);
+
+    // Send initial state immediately
+    getQuotaExceededFlag().then(isExceeded => {
+        res.write(`data: ${JSON.stringify({ youtubeQuotaExceeded: isExceeded })}\n\n`);
+    });
+
+    console.log(`[SSE] Client connected: ${clientId}. Total: ${quotaClients.size}`);
+
+    req.on('close', () => {
+        quotaClients.delete(newClient);
+        console.log(`[SSE] Client disconnected: ${clientId}. Total: ${quotaClients.size}`);
+    });
 });
 
 router.post('/create-video', isAuthenticated, upload.none(), async (req, res) => {
