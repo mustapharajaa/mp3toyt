@@ -1799,6 +1799,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     manageUsersLink.style.display = 'block';
                 }
 
+                // --- YouTube Quota Alert Check ---
+                if (isAdmin) {
+                    const quotaAlert = document.getElementById('quota-alert');
+                    const checkQuota = async () => {
+                        try {
+                            const qRes = await fetch('/get-quota-status');
+                            const qData = await qRes.json();
+                            if (qData.success && qData.youtubeQuotaExceeded) {
+                                if (quotaAlert) quotaAlert.style.display = 'flex';
+                            } else {
+                                if (quotaAlert) quotaAlert.style.display = 'none';
+                            }
+                        } catch (e) { console.error('Quota check failed:', e); }
+                    };
+                    checkQuota();
+                    setInterval(checkQuota, 5 * 60 * 1000); // Check every 5 mins
+                }
+
             } else {
                 // Not logged in
                 if (loginBtn) loginBtn.style.display = 'inline-block';
