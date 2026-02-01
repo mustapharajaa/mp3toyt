@@ -955,62 +955,71 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // --- YouTube Cookies Management ---
-    const cookiesModal = document.getElementById('cookiesModal');
-    const manageCookiesBtn = document.getElementById('manage-cookies-btn');
-    const closeCookiesBtn = document.getElementById('close-cookies-modal');
-    const cancelCookiesBtn = document.getElementById('cancel-cookies-btn');
-    const saveCookiesBtn = document.getElementById('save-cookies-btn');
-    const cookiesEditor = document.getElementById('cookies-editor');
+    // --- YouTube Management Modals Logic ---
+    const setupModal = (modalId, btnId, closeId, editorId, getUrl, saveUrl, dataKey) => {
+        const modal = document.getElementById(modalId);
+        const btn = document.getElementById(btnId);
+        const closeBtn = document.getElementById(closeId);
+        const editor = document.getElementById(editorId);
+        const saveBtn = modal?.querySelector('button[id^="save-"]');
+        const cancelBtn = modal?.querySelector('button[id^="cancel-"]');
 
-    if (manageCookiesBtn) {
-        manageCookiesBtn.addEventListener('click', async () => {
+        if (!modal || !btn) return;
+
+        btn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/get-cookies');
+                const res = await fetch(getUrl);
                 const data = await res.json();
                 if (data.success) {
-                    cookiesEditor.value = data.cookies || '';
-                    cookiesModal.style.display = 'flex';
+                    editor.value = (typeof data[dataKey] === 'string') ? data[dataKey] : JSON.stringify(data[dataKey], null, 2);
+                    modal.style.display = 'flex';
                 } else {
-                    showNotification('Failed to load cookies', 'error');
+                    showNotification(`Failed to load ${dataKey}`, 'error');
                 }
             } catch (err) {
-                console.error('Error fetching cookies:', err);
-                showNotification('Error loading cookies', 'error');
+                console.error(`Error fetching ${dataKey}:`, err);
+                showNotification(`Error loading ${dataKey}`, 'error');
             }
         });
-    }
 
-    const closeCookies = () => { cookiesModal.style.display = 'none'; };
-    if (closeCookiesBtn) closeCookiesBtn.addEventListener('click', closeCookies);
-    if (cancelCookiesBtn) cancelCookiesBtn.addEventListener('click', closeCookies);
+        const close = () => { modal.style.display = 'none'; };
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        if (cancelBtn) cancelBtn.addEventListener('click', close);
 
-    if (saveCookiesBtn) {
-        saveCookiesBtn.addEventListener('click', async () => {
-            saveCookiesBtn.disabled = true;
-            saveCookiesBtn.textContent = 'Saving...';
-            try {
-                const res = await fetch('/save-cookies', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cookies: cookiesEditor.value })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    showNotification('Cookies saved successfully!');
-                    closeCookies();
-                } else {
-                    showNotification('Failed to save cookies', 'error');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                saveBtn.disabled = true;
+                const originalText = saveBtn.textContent;
+                saveBtn.textContent = 'Saving...';
+                try {
+                    const res = await fetch(saveUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [dataKey]: editor.value })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showNotification(`${dataKey.charAt(0).toUpperCase() + dataKey.slice(1)} saved successfully!`);
+                        close();
+                    } else {
+                        showNotification(data.message || `Failed to save ${dataKey}`, 'error');
+                    }
+                } catch (err) {
+                    console.error(`Error saving ${dataKey}:`, err);
+                    showNotification(`Error saving ${dataKey}`, 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
                 }
-            } catch (err) {
-                console.error('Error saving cookies:', err);
-                showNotification('Error saving cookies', 'error');
-            } finally {
-                saveCookiesBtn.disabled = false;
-                saveCookiesBtn.textContent = 'Save Cookies';
-            }
-        });
-    }
+            });
+        }
+    };
+
+    // Initialize all YouTube management modals
+    setupModal('cookiesModal', 'manage-cookies-btn', 'close-cookies-modal', 'cookies-editor', '/get-cookies', '/save-cookies', 'cookies');
+    setupModal('tokensModal', 'manage-tokens-btn', 'close-tokens-modal', 'tokens-editor', '/get-tokens', '/save-tokens', 'tokens');
+    setupModal('channelsJSONModal', 'manage-channels-json-btn', 'close-channels-json-modal', 'channels-json-editor', '/get-channels-json', '/save-channels-json', 'channels');
+    setupModal('credentialsModal', 'manage-credentials-btn', 'close-credentials-modal', 'credentials-editor', '/get-credentials', '/save-credentials', 'credentials');
 
     // --- Management Dropdown ---
     const managementBtn = document.getElementById('management-btn');

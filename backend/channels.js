@@ -71,23 +71,33 @@ async function getChannelsForUser(username) {
     // --- Admin Direct Facebook Channel (Virtual) ---
     if (username === ADMIN_USERNAME) {
         try {
-            const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
-            const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
-            if (adminDirect && adminDirect.access_token) {
-                mappedChannels.push({
-                    channelId: 'admin_direct',
-                    channelTitle: 'Admin Direct FB',
-                    platform: 'facebook',
-                    thumbnail: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg',
-                    status: 'connected',
-                    username: ADMIN_USERNAME,
-                    type: 'direct'
-                });
+            const fbTokensExists = await fs.pathExists(FACEBOOK_TOKENS_PATH);
+            // console.log(`[Channels] Checking FB tokens at: ${FACEBOOK_TOKENS_PATH}. Exists: ${fbTokensExists}`);
+
+            if (fbTokensExists) {
+                const fbTokens = await fs.readJson(FACEBOOK_TOKENS_PATH).catch(() => []);
+                const adminDirect = fbTokens.find(t => t.accountId === 'admin_direct');
+
+                if (adminDirect && adminDirect.access_token) {
+                    mappedChannels.push({
+                        channelId: 'admin_direct',
+                        channelTitle: adminDirect.accountTitle || 'Admin Direct FB',
+                        platform: 'facebook',
+                        thumbnail: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg',
+                        status: 'connected',
+                        username: ADMIN_USERNAME,
+                        type: 'direct'
+                    });
+                    // console.log('[Channels] Successfully added virtual FB channel "admin_direct"');
+                } else {
+                    // console.log('[Channels] admin_direct not found or missing access_token in Tokens file');
+                }
             }
         } catch (err) {
             console.error('[Channels] Error adding virtual FB channel:', err.message);
         }
     }
+
 
     console.log(`[Channels] Returning ${mappedChannels.length} channels for ${username}`);
     return mappedChannels;

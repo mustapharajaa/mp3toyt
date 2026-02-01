@@ -1121,8 +1121,13 @@ async function processVideoQueue() {
         // 1. Resolve channel metadata & Perform Ghost Channel Protection
         // If a channel was deleted (rotation) or disconnected while this job was waiting in the queue,
         // we automatically "hot-swap" it to any available connected channel for the user.
+        const isFacebookJob = job.platform === 'facebook';
         const userChannels = (await mp3toytChannels.getChannelsForUser(username))
-            .filter(c => c.isConnected !== false && c.status !== 'exhausted' && c.platform !== 'facebook');
+            .filter(c => c.isConnected !== false && c.status !== 'exhausted');
+
+        // Note: If it's a direct Facebook upload, we might not have a "channel" in the traditional sense, 
+        // but we should still find the linked Facebook account.
+
 
         // Check if the originally assigned channel is still active
         channelMeta = userChannels.find(c => c.channelId === actualChannelId);
@@ -2324,7 +2329,7 @@ router.post('/save-cookies', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // --- Credentials Management ---
-router.post('/get-credentials', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/get-credentials', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(CREDENTIALS_PATH)) {
             const content = await fs.readFile(CREDENTIALS_PATH, 'utf8');
@@ -2368,7 +2373,7 @@ router.post('/save-credentials', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // --- Tokens Management ---
-router.post('/get-tokens', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/get-tokens', isAuthenticated, isAdmin, async (req, res) => {
     try {
         if (await fs.pathExists(TOKEN_PATH)) {
             const content = await fs.readFile(TOKEN_PATH, 'utf8');
@@ -2395,7 +2400,7 @@ router.post('/save-tokens', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // --- Channels Management ---
-router.post('/get-channels-json', isAuthenticated, isAdmin, async (req, res) => {
+router.get('/get-channels-json', isAuthenticated, isAdmin, async (req, res) => {
     try {
         const username = req.session && req.session.username ? req.session.username : 'guest';
         const targetPath = (username === 'erraja') ? ADMIN_CHANNELS_PATH : CHANNELS_PATH;
